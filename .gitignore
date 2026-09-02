@@ -1,0 +1,12 @@
+__pycache__/
+.pytest_cache/
+
+# Raw run output and the generated HTML. Both are rebuilt by a run, so they
+# are not worth versioning.
+reports/allure-results/
+reports/allure-report/
+reports/allure-history/
+reports/runs/
+reports/rebuilt/
+reports/*.html
+reports/*.png

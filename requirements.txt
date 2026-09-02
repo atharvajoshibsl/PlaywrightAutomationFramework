@@ -1,0 +1,13 @@
+playwright>=1.58.0
+
+# Test runner. pytest-playwright supplies the browser/page fixtures and the
+# --headed, --browser and --tracing flags we would otherwise hand-roll.
+pytest>=8.0.0
+pytest-playwright>=0.7.0
+
+# Writes the raw JSON that the Allure CLI renders into HTML. The CLI itself is
+# a separate Java tool, not a pip package - see README.
+allure-pytest>=2.13.0
+
+# Only used by tools/build_test_plan.py to regenerate TEST_PLAN.xlsx.
+openpyxl>=3.1.0
