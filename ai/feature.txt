@@ -1,0 +1,68 @@
+AK-101 - Product listing page: shell, controls and product cards
+
+Type:      Story
+Priority:  Highest
+Component: Catalogue
+Status:    Ready for QA
+
+
+Summary
+-------
+A visitor landing on the shop root sees the whole product catalogue together
+with the site shell, so they can orient themselves and start browsing without
+signing in.
+
+
+Background
+----------
+The shop seeds 16 products across 4 categories, with 53 variants between them.
+Every visitor gets their own copy of that data, so a first-time listing looks
+identical for everyone.
+
+
+Acceptance criteria
+-------------------
+
+Page
+- The root URL serves the product listing.
+- The browser tab reads "Products | AItomationKart".
+- The page heading reads "Products".
+
+Header, present on every page
+- The wordmark reads "AItomationKart".
+- A tagline reads "You read it wrong - read it correct through automation!".
+  It sits beside the wordmark, and is hidden on windows narrower than 1180px so
+  that it cannot collide with the search box.
+- A search box with a Search button beside it.
+- A theme toggle.
+- A Cart link carrying a count badge. For a visitor with an empty cart the badge
+  reads 0.
+- A guest sees "Sign in" and "Register". The signed-in header is AK-140.
+
+Filter and sort controls
+- Category chips, in this order: All, Apparel, Electronics, Footwear,
+  Home & Kitchen. "All" is the active chip when the page first loads.
+- A "Sort by" dropdown offering, in this order: Relevance, Price: low to high,
+  Price: high to low, Name: A to Z, Rating. Relevance is the default.
+
+Listing
+- A result count reading "16 products found" when nothing is filtered.
+- One card per product, so 16 cards on a first load.
+- Every card carries an image, the brand, the product name, the price, a star
+  rating, and a stock badge reading either "In stock" or "Out of stock".
+- Prices are shown in rupees, with the currency symbol.
+- Clicking a card opens that product's detail page.
+
+Footer, present on every page
+- The wordmark and the tagline are repeated.
+- A list of the five frameworks the site exists to be automated with:
+  Playwright, Selenium, Cypress, Robot Framework, REST API.
+- A note stating that no real payments are taken.
+- A copyright line naming Atharva Joshi.
+
+
+Out of scope
+------------
+- Search, category filtering and sorting behaviour. That is AK-102.
+- The product detail page. That is AK-103.
+- Layouts below tablet width.

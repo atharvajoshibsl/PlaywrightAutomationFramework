@@ -1,6 +1,13 @@
 __pycache__/
 .pytest_cache/
 
+# The Gemini key. Never commit this.
+ai/api_key.txt
+
+# Drafted test cases. Regenerated from a feature whenever they are wanted, and
+# only the ones worth keeping are copied into TEST_PLAN.xlsx.
+ai/ai_test_cases.csv
+
 # Raw run output and the generated HTML. Both are rebuilt by a run, so they
 # are not worth versioning.
 reports/allure-results/

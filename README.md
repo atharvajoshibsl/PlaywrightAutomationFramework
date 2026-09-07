@@ -145,10 +145,47 @@ PlaywrightAutomation/
 ├─ tests/
 │  ├─ test_tc01_home_page_renders_full_expected_interface.py
 │  └─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
+├─ ai/
+│  ├─ design_tests.py  Drafts test cases from a feature, in the plan's format
+│  └─ feature.txt      The feature to draft from — replace with your own ticket
 └─ tools/
    ├─ build_test_plan.py  Regenerates TEST_PLAN.xlsx from Python source
    └─ view_run.py         Rebuilds an archived run into HTML
 ```
+
+## AI capability (exploratory)
+
+`ai/` is where the LLM work goes. Nothing in `tests/` imports it, and that
+separation is deliberate: everything in `framework/` reaches the same verdict on
+the same page every time, and a model does not promise that.
+
+`ai/design_tests.py` drafts test cases from a feature description, in the same
+columns as the Test Cases sheet. It is how the plan is meant to grow — from a
+ticket or an HLD, rather than by reading the finished site and writing tests to
+match it.
+
+Paste your Gemini key into `ai/api_key.txt` once, put a feature into
+`ai/feature.txt`, then:
+
+```powershell
+py ai/design_tests.py
+```
+
+It asks how many cases you want and which feature area, writes them to
+`ai/ai_test_cases.csv`, and lists any acceptance criterion no case covers. Read
+the CSV, type what to improve, and the same rows are rewritten. Copy the cases
+worth keeping into `TEST_PLAN.xlsx` yourself — the AI never writes to the plan.
+
+Two things carry the output quality: the response schema, whose enums make an
+invalid Suite, Scope or Priority impossible, and TC01 and TC02 embedded in the
+prompt as worked examples. Without those examples the model splits one rendering
+case into one case per page section.
+
+The model is `gemini-3.5-flash-lite`, one constant at the top of the file.
+Flash-Lite is the free tier's workhorse at roughly 15 calls a minute; plain
+Flash is stronger but a new key only gets around 20 calls a day on it. Pro
+models left the free tier in April 2026, and `gemini-2.5-flash` now 404s for
+newly created keys, so older tutorials will mislead you.
 
 ## Design decisions
 
@@ -212,6 +249,8 @@ Close the workbook first — Excel holds a write lock while it is open.
 - GitHub Actions workflow with the report published to Pages
 - Parallel execution once the cases are independent enough to allow it
 - An API-level layer alongside the UI cases
+- More of the AI side: retrieval over the existing plan so drafts do not
+  duplicate coverage, then AI-assisted triage of failures in the report
 
 ## Author
 

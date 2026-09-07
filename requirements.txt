@@ -11,3 +11,7 @@ allure-pytest>=2.13.0
 
 # Only used by tools/build_test_plan.py to regenerate TEST_PLAN.xlsx.
 openpyxl>=3.1.0
+
+# Only used by ai/. The one SDK for Gemini - note that the older
+# google-generativeai package is a different, retired library.
+google-genai>=1.40.0

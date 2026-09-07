@@ -1,5 +1,5 @@
 """What the application is expected to contain.
-
+Basically Test Data
 These are the suite's oracle: the answer to "what is correct" lives here, in
 one readable place, rather than being scattered through assertions. When the
 shop adds a category, one line changes here and every test that cares fails
