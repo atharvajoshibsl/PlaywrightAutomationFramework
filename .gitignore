@@ -8,6 +8,9 @@ ai/api_key.txt
 # only the ones worth keeping are copied into TEST_PLAN.xlsx.
 ai/ai_test_cases.csv
 
+# A snapshot of one page's elements, rebuilt by running the extractor.
+ai/inventory.json
+
 # Raw run output and the generated HTML. Both are rebuilt by a run, so they
 # are not worth versioning.
 reports/allure-results/
