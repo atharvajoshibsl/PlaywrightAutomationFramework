@@ -11,7 +11,16 @@ pointing at the wrong thing. So use plain Playwright calls for actions, and
 SoftAssert.check for the observations that follow them.
 """
 
+from contextlib import contextmanager
+
 import allure
+
+
+class _StepFailed(AssertionError):
+    """Raised to colour a step red, then swallowed by SoftAssert.step.
+
+    An AssertionError so Allure files the step as failed rather than broken.
+    """
 
 
 def holds(condition, detail):
@@ -34,6 +43,26 @@ class SoftAssert:
     def __init__(self):
         self.failures = []
         self.passed = 0
+
+    @contextmanager
+    def step(self, name):
+        """An Allure step that turns red if any check inside it failed.
+
+        Use instead of allure.step around soft checks. Without this the step
+        stays green: check() swallows the failure, so nothing propagates out
+        of the step for Allure to see. Raising on the way out fixes the
+        colour, and catching it here keeps the test running.
+        """
+        before = len(self.failures)
+        try:
+            with allure.step(name):
+                yield
+                if len(self.failures) > before:
+                    raise _StepFailed(
+                        f"{len(self.failures) - before} of this step's checks "
+                        "failed")
+        except _StepFailed:
+            pass
 
     def check(self, label, assertion):
         """Runs one assertion, records the outcome, and never raises.

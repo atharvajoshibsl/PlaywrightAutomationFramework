@@ -144,12 +144,12 @@ PlaywrightAutomation/
 │  └─ reporting.py    History handling, report generation, run archiving
 ├─ tests/
 │  ├─ test_tc01_home_page_renders_full_expected_interface.py
-│  └─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
+│  ├─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
+│  └─ test_self_healing_demo.py  Stale locators on purpose, to show healing
 ├─ ai/
 │  ├─ design_tests.py    Drafts test cases from a feature, in the plan's format
 │  ├─ feature.txt        The feature to draft from — replace with your own ticket
-│  ├─ page_inventory.py  Reduces a live page to the elements a test could target
-│  └─ heal_locator.py    Suggests a replacement for a locator the page has lost
+│  └─ self_heal.py       Locator healing: reads the page, suggests, judges
 └─ tools/
    ├─ build_test_plan.py  Regenerates TEST_PLAN.xlsx from Python source
    └─ view_run.py         Rebuilds an archived run into HTML
@@ -157,9 +157,11 @@ PlaywrightAutomation/
 
 ## AI capability (exploratory)
 
-`ai/` is where the LLM work goes. Nothing in `tests/` imports it, and that
+`ai/` is where the LLM work goes, and `framework/` never imports it. That
 separation is deliberate: everything in `framework/` reaches the same verdict on
-the same page every time, and a model does not promise that.
+the same page every time, and a model does not promise that. One test imports
+`ai/` — the self-healing demo below — and even there the model only annotates a
+failure it had no part in deciding.
 
 ### Test case design
 
@@ -187,44 +189,84 @@ case into one case per page section.
 
 ### Self-healing locators
 
-`ai/heal_locator.py` answers one question: a test looked for a `data-testid`
-that is no longer on the page — which element did it mean?
+`ai/self_heal.py` answers one question: a test looked for a `data-testid` that
+is no longer on the page — which element did it mean? It never repairs anything.
+A failing test still fails; the report just tells you what to change.
+
+`tests/test_self_healing_demo.py` shows it working. Six locators, three of them
+renamed long ago and one for an element the page does not have:
 
 ```powershell
-py ai/page_inventory.py /product/mechanical-keyboard
-py ai/heal_locator.py "add-to-cart-button" "the button that adds to the cart"
+pytest tests/test_self_healing_demo.py -s
 ```
 
-`ai/page_inventory.py` does the unglamorous half. Sending a page's HTML to a
-model is mostly paying for class attributes and layout wrappers, so one
-`page.evaluate` reduces the page to the elements a test could target — tag,
-testid, a short label, and how many elements share that testid. Unrendered
-elements never leave the browser, and one row per testid keeps 16 product cards
-from becoming 16 copies of the same ids.
+The test asks for its elements through `heal.find(testid, intent)` instead of
+`page.get_by_test_id(testid)`, which is the same locator plus a note of what it
+was for. At the end, `heal.report()` reads the page once, compares the testids
+the test asked for against what is actually there, and asks the model only about
+the ones that are missing — four calls, not six. Suggestions go to the terminal
+and to the Allure report:
 
-The healer sends that list, plus a sentence on what the locator was for, and
-gets back `{selector, confidence, reason}`. Then Python decides: the confidence
-must clear a floor, and the suggestion must actually appear in the inventory —
-which, since the list came off the live page moments earlier, proves the element
-exists and is rendered.
+```
+[heal] 4 of 6 locators are not on the page:
+
+1) actual:    page.get_by_test_id("search-box")
+   suggested: page.get_by_role("searchbox", name="Search products")  (1.00)
+   at:        test_self_healing_demo.py:49
+
+4) actual:    page.get_by_test_id("checkout-now")
+   suggested: nothing matches, may be a defect
+   at:        test_self_healing_demo.py:65
+```
+
+When every locator resolves it says nothing and adds no step, so a healthy test
+is untouched.
+
+The suggestion is a whole locator, not just a testid, and it is chosen by asking
+the page rather than by reasoning. `best_locator` tries `get_by_role` with an
+accessible name, then the testid, then placeholder, role alone and exact text,
+and keeps the first whose `count()` is exactly 1. So the line you paste is known
+to resolve to one element — and if nothing does, it says to add `.first`.
+
+The demo is `xfail`: its failures are the demonstration, and a permanently red
+suite would be worse than no demo. Use `--runxfail` to see it fail for real.
+
+Reading the page is the unglamorous half. Sending raw HTML to a model is mostly
+paying for class attributes and layout wrappers, so one `page.evaluate` reduces
+it to the elements a test could target — tag, testid, up to three sample texts,
+and how many elements share that testid. Unrendered elements never leave the
+browser, and one row per testid keeps 16 product cards from becoming 16 copies
+of the same ids. The count is not decoration: a suggestion matching 16 elements
+would fail Playwright's strict mode, so the report says to narrow it.
+
+Then Python judges the answer. The confidence must clear a floor, and the
+suggested testid must appear in that inventory — which, since the list came off
+the live page moments earlier, proves the element exists and is rendered. The
+model narrows the candidates; code decides whether to believe it.
 
 Two properties matter more than the accuracy. It **suggests, never repairs**, so
 a run stays reproducible and no model sits in the pass/fail decision. And it
-**refuses rather than guesses**: with no add-to-cart button anywhere on the page
-it returns nothing at zero confidence instead of offering the surrounding form.
-That refusal is the point — a healer that invents an element turns a real bug
-green, which is worse than a red test.
+**refuses rather than guesses**: asked for a button that places an order on a
+page that has none, it returns nothing at zero confidence instead of offering
+the nearest lookalike. That refusal is the point — a healer that invents an
+element turns a real bug green, which is worse than a red test.
 
-It picks the button over `add-to-cart-form`, whose name is one word off the
-broken locator, because the prompt asks what an element does rather than what it
-is called. String similarity picks the form.
+It also picks `add-to-cart` over `add-to-cart-form`, whose name is one word off
+the broken locator, because the prompt asks what an element does rather than
+what it is called. String similarity picks the form.
 
-Not yet built: caching accepted heals to disk, and a wrapper in `framework/`
-that a test can call and that attaches each suggestion to the Allure report.
+The same file runs on its own for one locator, without a test:
+
+```powershell
+py ai/self_heal.py "add-to-cart-button" "the button that adds to the cart"
+```
+
+Not yet built: caching accepted heals to disk, so a broken locator costs one
+call ever and repeat runs need no model at all.
 
 ### Model choice
 
-The model is `gemini-3.5-flash-lite`, one constant at the top of the file.
+The model is `gemini-3.5-flash-lite`, one constant near the top of each file.
 Flash-Lite is the free tier's workhorse at roughly 15 calls a minute; plain
 Flash is stronger but a new key only gets around 20 calls a day on it. Pro
 models left the free tier in April 2026, and `gemini-2.5-flash` now 404s for
@@ -293,8 +335,8 @@ Close the workbook first — Excel holds a write lock while it is open.
 - Parallel execution once the cases are independent enough to allow it
 - An API-level layer alongside the UI cases
 - More of the AI side: retrieval over the existing plan so drafts do not
-  duplicate coverage, cached heals behind a `framework/` wrapper that reports
-  every suggestion, then AI-assisted triage of failures in the report
+  duplicate coverage, heals cached to disk so a broken locator costs one call
+  ever, then AI-assisted triage of failures in the report
 
 ## Author
 
