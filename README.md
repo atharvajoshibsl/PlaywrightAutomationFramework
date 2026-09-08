@@ -12,7 +12,8 @@ Two helpers use an LLM: one drafts test cases from a feature spec, the other
 suggests a replacement for a locator the page has lost. Neither decides whether
 a test passes.
 
-3 of 18 planned cases are automated; the rest are added one at a time.
+TC01 to TC10 are automated, plus the self-healing demo; the rest are added one
+at a time.
 
 - **Application under test:** https://atharvajoshi.pythonanywhere.com
 - **Application source:** https://github.com/atharvajoshibsl/AItomationKart
@@ -24,14 +25,14 @@ a test passes.
 |------|------|------|-------|--------|
 | TC01 | Home page renders the full expected interface | Interface | Smoke | Automated |
 | TC02 | Catalogue search, clear, category filter and sort | Catalogue | Smoke | Automated |
-| TC03 | Product detail opens from a card and adds to the cart | Product detail | Smoke | Planned |
-| TC04 | Cart quantities, line totals and clearing | Cart | Smoke | Planned |
-| TC05 | Sign in, sign out and registration | Auth | Smoke | Planned |
-| TC06 | Login rejects bad credentials without revealing which | Auth | Regression | Planned |
-| TC07 | Guest cart survives sign-in | Guest flow | Regression | Planned |
-| TC08 | Checkout summary is accurate and places the order | Checkout | Smoke | Planned |
-| TC09 | Checkout is refused with an empty cart | Checkout | Regression | Planned |
-| TC10 | Card payment: decline, expiry and successful retry | Payment | Regression | Planned |
+| TC03 | Product detail opens from a card and adds to the cart | Product detail | Smoke | Automated |
+| TC04 | Cart quantities, line totals and clearing | Cart | Smoke | Automated |
+| TC05 | Sign in, sign out and registration | Auth | Sanity | Automated |
+| TC06 | Login rejects bad credentials without revealing which | Auth | Regression | Automated |
+| TC07 | Guest cart survives sign-in | Guest flow | Sanity | Automated |
+| TC08 | Checkout summary is accurate and places the order | Checkout | Sanity | Automated |
+| TC09 | Checkout is refused with an empty cart | Checkout | Regression | Automated |
+| TC10 | Card payment: decline, expiry and successful retry | Payment | Sanity | Automated |
 | TC11 | UPI payment approves after its window | Payment | Regression | Planned |
 | TC12 | Wallet payment succeeds and is refused when short | Payment | Regression | Planned |
 | TC13 | Order history and detail match what was bought | Orders | Regression | Planned |
@@ -109,11 +110,20 @@ PlaywrightAutomation/
 ├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
 ├─ framework/
 │  ├─ config.py       What the app should contain — the suite's oracle
+│  ├─ actions.py      Screenshots, money parsing, and journeys tests reuse
 │  ├─ soft_assert.py  Assertions that record a failure instead of stopping
 │  └─ reporting.py    Report generation, history, run archiving
 ├─ tests/
 │  ├─ test_tc01_home_page_renders_full_expected_interface.py
 │  ├─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
+│  ├─ test_tc03_product_detail_opens_from_a_card_and_adds_to_the_cart.py
+│  ├─ test_tc04_cart_quantities_line_totals_and_clearing.py
+│  ├─ test_tc05_sign_in_sign_out_and_registration.py
+│  ├─ test_tc06_login_rejects_bad_credentials_without_revealing_which.py
+│  ├─ test_tc07_guest_cart_survives_sign_in.py
+│  ├─ test_tc08_checkout_summary_is_accurate_and_places_the_order.py
+│  ├─ test_tc09_checkout_is_refused_with_an_empty_cart.py
+│  ├─ test_tc10_card_payment_decline_expiry_and_successful_retry.py
 │  └─ test_self_healing_demo.py  Stale locators on purpose, to show healing
 ├─ ai/
 │  ├─ design_tests.py  Drafts test cases from a feature

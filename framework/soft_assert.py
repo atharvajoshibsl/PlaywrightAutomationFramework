@@ -12,6 +12,14 @@ class _StepFailed(AssertionError):
     """Marks an Allure step failed (not broken)."""
 
 
+def say(line):
+    """Print a line, tolerating consoles that cannot encode every character."""
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        print(line.encode("ascii", "replace").decode())
+
+
 def holds(condition, detail):
     """Wrap a boolean check as a callable for SoftAssert.check."""
     def assertion():
@@ -51,17 +59,17 @@ class SoftAssert:
             # First line is enough from Playwright's multi-line error.
             detail = str(error).strip().splitlines()[0]
             self.failures.append((label, detail))
-            print(f"  FAIL  {label}\n        {detail}")
+            say(f"  FAIL  {label}\n        {detail}")
         else:
             self.passed += 1
-            print(f"  ok    {label}")
+            say(f"  ok    {label}")
 
     def assert_all(self):
         """Fail if any checks failed. Call at end of test, not teardown."""
         total = self.passed + len(self.failures)
         summary = (f"{self.passed} passed, {len(self.failures)} failed, "
                    f"{total} checks total")
-        print(f"\n{summary}")
+        say(f"\n{summary}")
         allure.attach(summary, name="check summary",
                       attachment_type=allure.attachment_type.TEXT)
 

@@ -385,6 +385,10 @@ FUTURE = [
      "along the way."),
 ]
 
+# Cases that have a test file under tests/.
+AUTOMATED = {"TC01", "TC02", "TC03", "TC04", "TC05", "TC06", "TC07", "TC08",
+             "TC09", "TC10", "TC18"}
+
 HEADERS = [
     ("Test Case ID", 12),
     ("Feature Area", 16),
@@ -427,7 +431,9 @@ def header_row(ws, fill):
 
 def case_rows(ws, cases, status, note):
     for index, case in enumerate(cases):
-        ws.append([case[i] for i in COLUMN_ORDER] + [status, note])
+        # Cases with a test file report Automated; the rest keep the default.
+        state = "Automated" if case[0] in AUTOMATED else status
+        ws.append([case[i] for i in COLUMN_ORDER] + [state, note])
         row = ws[ws.max_row]
         for cell in row:
             cell.alignment = Alignment(vertical="top", wrap_text=True)
@@ -591,9 +597,10 @@ def write_summary(ws):
     ws["A1"].font = Font(bold=True, size=14, color="1F3864")
     ws.append([])
     ws.append(["Working set", len(CASES)])
+    ws.append(["Automated", sum(1 for c in CASES if c[0] in AUTOMATED)])
     ws.append(["Future scope", len(FUTURE)])
     ws.append(["Total written up", len(CASES) + len(FUTURE)])
-    for row in range(3, 6):
+    for row in range(3, 7):
         ws.cell(row=row, column=1).font = Font(bold=True)
         ws.cell(row=row, column=2).font = Font(bold=True)
     ws.append([])
