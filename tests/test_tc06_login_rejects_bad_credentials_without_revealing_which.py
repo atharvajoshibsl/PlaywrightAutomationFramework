@@ -10,25 +10,15 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
-from framework import actions, config
+from framework import config
 from framework.soft_assert import SoftAssert, holds
+from pages import LoginPage, RegisterPage
 
 ACCOUNT = config.DEMO_ACCOUNT
 REJECTED = config.LOGIN_REJECTED
 
 UNKNOWN_EMAIL = "nobody@shop.test"
 WRONG_PASSWORD = "NotThePassword1"
-
-
-def attempt(page, base_url, email, password):
-    """Submit the login form and return the error it comes back with."""
-    page.goto(f"{base_url}/login")
-    page.get_by_test_id("login-email").fill(email)
-    page.get_by_test_id("login-password").fill(password)
-    page.get_by_test_id("login-submit").click()
-    error = page.get_by_test_id("login-error")
-    error.wait_for()
-    return error.inner_text().strip()
 
 
 @allure.feature("Authentication")
@@ -40,12 +30,13 @@ def attempt(page, base_url, email, password):
 def test_login_rejects_bad_credentials_without_revealing_which(shop, base_url):
     page = shop
     soft = SoftAssert()
+    login, register = LoginPage(page), RegisterPage(page)
 
-    signed_out = page.get_by_test_id("nav-login")
+    signed_out = login.login_link
 
     with soft.step("Step 1 - a real account with the wrong password"):
-        wrong_password = attempt(page, base_url, ACCOUNT["email"],
-                                 WRONG_PASSWORD)
+        login.open(base_url)
+        wrong_password = login.attempt(ACCOUNT["email"], WRONG_PASSWORD)
         allure.dynamic.parameter("wrong password says", wrong_password)
 
         soft.check("the attempt is refused",
@@ -54,11 +45,11 @@ def test_login_rejects_bad_credentials_without_revealing_which(shop, base_url):
         soft.check("no session is created",
                    lambda: expect(signed_out).to_be_visible())
 
-        actions.capture(page, "wrong password")
+        login.capture("wrong password")
 
     with soft.step("Step 2 - an email with no account"):
-        unknown_email = attempt(page, base_url, UNKNOWN_EMAIL,
-                                ACCOUNT["password"])
+        login.open(base_url)
+        unknown_email = login.attempt(UNKNOWN_EMAIL, ACCOUNT["password"])
         allure.dynamic.parameter("unknown email says", unknown_email)
 
         soft.check("the attempt is refused",
@@ -77,26 +68,25 @@ def test_login_rejects_bad_credentials_without_revealing_which(shop, base_url):
                          f"the page said {wrong_password!r}"))
 
     with soft.step("Step 4 - an empty form"):
-        empty = attempt(page, base_url, "", "")
+        login.open(base_url)
+        empty = login.attempt("", "")
 
         soft.check("the empty form is refused too",
                    holds(empty == REJECTED, f"the page said {empty!r}"))
         soft.check("no session is created",
                    lambda: expect(signed_out).to_be_visible())
         soft.check("the login form is still on the page",
-                   lambda: expect(page.get_by_test_id("login-form"))
-                   .to_be_visible())
+                   lambda: expect(login.form).to_be_visible())
 
-        actions.capture(page, "empty form refused")
+        login.capture("empty form refused")
 
     with soft.step("Step 5 - registering an address already in use"):
-        page.goto(f"{base_url}/register")
-        actions.register(page, {**config.NEW_ACCOUNT,
-                                "email": ACCOUNT["email"]})
-        page.get_by_test_id("error-email").wait_for()
+        register.open(base_url)
+        register.register({**config.NEW_ACCOUNT, "email": ACCOUNT["email"]})
+        register.email_error.wait_for()
 
         soft.check("the duplicate is named as the problem",
-                   lambda: expect(page.get_by_test_id("error-email"))
+                   lambda: expect(register.email_error)
                    .to_have_text(config.EMAIL_TAKEN))
         soft.check("no second account is created and nobody is signed in",
                    lambda: expect(signed_out).to_be_visible())
@@ -104,6 +94,6 @@ def test_login_rejects_bad_credentials_without_revealing_which(shop, base_url):
                    holds(re.search(r"/register", page.url) is not None,
                          f"landed on {page.url}"))
 
-        actions.capture(page, "duplicate registration refused")
+        register.capture("duplicate registration refused")
 
     soft.assert_all()

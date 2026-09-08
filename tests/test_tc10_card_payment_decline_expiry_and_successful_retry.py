@@ -5,14 +5,14 @@ must fail as expired rather than declined, and the retry must pay the same
 order exactly once.
 """
 
-import re
-
 import allure
 import pytest
 from playwright.sync_api import expect
 
-from framework import actions, config
+from framework import config
 from framework.soft_assert import SoftAssert, holds
+from pages import (CartPage, CheckoutPage, HomePage, LoginPage, OrderPage,
+                   OrdersPage, PaymentPage, ProductPage)
 
 ACCOUNT = config.DEMO_ACCOUNT
 PRODUCT = config.CART_PRODUCT
@@ -28,57 +28,55 @@ CARDS = config.CARDS
 def test_card_payment_decline_expiry_and_successful_retry(shop, base_url):
     page = shop
     soft = SoftAssert()
-
-    error = page.get_by_test_id("flash-error")
-    pay_button = page.get_by_test_id("pay-card")
+    home, product, cart = HomePage(page), ProductPage(page), CartPage(page)
+    login, checkout, payment = (LoginPage(page), CheckoutPage(page),
+                                PaymentPage(page))
+    order, orders = OrderPage(page), OrdersPage(page)
 
     with soft.step("Step 1 - place an order to pay for"):
-        page.goto(f"{base_url}/login")
-        actions.sign_in(page, ACCOUNT)
+        login.open(base_url)
+        login.sign_in(ACCOUNT)
 
-        page.goto(base_url)
-        actions.add_to_cart(page, PRODUCT["slug"])
-        page.get_by_test_id("checkout").click()
-        page.wait_for_url(re.compile("/checkout/"))
+        home.open(base_url)
+        home.open_product(PRODUCT["slug"])
+        product.add_to_cart()
+        cart.checkout()
 
-        number = actions.place_order(page)
-        total = page.get_by_test_id("payment-grand-total").inner_text()
+        number = checkout.place_order()
+        total = payment.amount()
         allure.dynamic.parameter("order", number)
         allure.dynamic.parameter("to pay", total)
 
         soft.check("the order is awaiting payment",
-                   lambda: expect(page.get_by_test_id("payment-order-number"))
+                   lambda: expect(payment.order_number)
                    .to_have_text(f"Order {number} \u2014 awaiting payment"))
         soft.check("the Card tab is the one open",
-                   lambda: expect(page.get_by_test_id("panel-card"))
-                   .to_be_visible())
+                   lambda: expect(payment.card_panel).to_be_visible())
 
     with soft.step("Step 2 - the card that always declines"):
-        actions.pay_by_card(page, CARDS["declined"])
-        declined = error.inner_text().strip()
+        payment.pay_by_card(CARDS["declined"])
+        declined = payment.error.inner_text().strip()
         allure.dynamic.parameter("decline says", declined)
 
         soft.check("the decline is stated plainly",
                    holds(declined == config.CARD_DECLINED,
                          f"the page said {declined!r}"))
         soft.check("the order still exists and is still payable",
-                   lambda: expect(pay_button).to_be_visible())
+                   lambda: expect(payment.pay_button).to_be_visible())
         soft.check("the visitor stays on the payment page for that order",
                    holds(page.url.endswith(f"/pay/{number}"),
                          f"landed on {page.url}"))
         soft.check("the amount to pay is unchanged",
-                   lambda: expect(page.get_by_test_id("payment-grand-total"))
-                   .to_have_text(total))
+                   lambda: expect(payment.grand_total).to_have_text(total))
         # A failed payment must never quietly empty the basket.
         soft.check("the basket is still there",
-                   lambda: expect(page.get_by_test_id("cart-count"))
-                   .to_have_text("1"))
+                   lambda: expect(payment.cart_count).to_have_text("1"))
 
-        actions.capture(page, "declined card")
+        payment.capture("declined card")
 
     with soft.step("Step 3 - the card that has expired"):
-        actions.pay_by_card(page, CARDS["expired"])
-        expired = error.inner_text().strip()
+        payment.pay_by_card(CARDS["expired"])
+        expired = payment.error.inner_text().strip()
         allure.dynamic.parameter("expiry says", expired)
 
         soft.check("it fails as expired",
@@ -89,56 +87,50 @@ def test_card_payment_decline_expiry_and_successful_retry(shop, base_url):
                    holds(expired != declined,
                          f"both said {expired!r}"))
         soft.check("the order is still payable",
-                   lambda: expect(pay_button).to_be_visible())
+                   lambda: expect(payment.pay_button).to_be_visible())
 
-        actions.capture(page, "expired card")
+        payment.capture("expired card")
 
     with soft.step("Step 4 - the card that succeeds"):
-        actions.pay_by_card(page, CARDS["success"])
+        payment.pay_by_card(CARDS["success"])
 
         soft.check("payment is confirmed",
-                   lambda: expect(page.get_by_test_id("flash-success"))
+                   lambda: expect(order.success)
                    .to_have_text(config.PAYMENT_CONFIRMED))
         soft.check("the same order opens, not a new one",
                    holds(page.url.endswith(f"/orders/{number}"),
                          f"landed on {page.url}"))
         soft.check("the order is placed",
-                   lambda: expect(page.get_by_test_id("order-status"))
-                   .to_have_text("PLACED"))
+                   lambda: expect(order.status).to_have_text("PLACED"))
         soft.check("the order is paid",
-                   lambda: expect(page.get_by_test_id("payment-status"))
+                   lambda: expect(order.payment_status)
                    .to_have_text("Payment: PAID"))
         soft.check("a payment reference is recorded",
-                   lambda: expect(page.get_by_test_id("payment-ref"))
+                   lambda: expect(order.payment_reference)
                    .to_contain_text("TXN"))
         soft.check("the paid order empties the basket",
-                   lambda: expect(page.get_by_test_id("cart-count"))
-                   .to_have_text("0"))
+                   lambda: expect(order.cart_count).to_have_text("0"))
 
-        actions.capture(page, "order paid after the retry")
+        order.capture("order paid after the retry")
 
     with soft.step("Step 5 - paid once, and only one order"):
-        page.get_by_test_id("nav-orders").click()
-        page.wait_for_url(re.compile("/orders/"))
+        orders.open_orders()
 
         soft.check("the three attempts produced one order",
-                   lambda: expect(page.get_by_test_id("order-row"))
-                   .to_have_count(1))
+                   lambda: expect(orders.rows).to_have_count(1))
         soft.check(f"and it is {number}",
-                   lambda: expect(page.get_by_test_id("order-number"))
-                   .to_have_text(number))
+                   lambda: expect(orders.numbers).to_have_text(number))
         soft.check("history reports it as paid",
-                   lambda: expect(page.get_by_test_id("order-payment-status"))
-                   .to_have_text("PAID"))
+                   lambda: expect(orders.payment_status).to_have_text("PAID"))
 
         # Asking to pay again must not offer a second payment.
-        page.goto(f"{base_url}/pay/{number}")
+        payment.open(base_url, number)
         soft.check("the payment page now sends the visitor to the order",
                    holds(page.url.endswith(f"/orders/{number}"),
                          f"landed on {page.url}"))
         soft.check("no card form is offered for a paid order",
-                   lambda: expect(pay_button).to_have_count(0))
+                   lambda: expect(payment.pay_button).to_have_count(0))
 
-        actions.capture(page, "order history after the retry")
+        orders.capture("order history after the retry")
 
     soft.assert_all()

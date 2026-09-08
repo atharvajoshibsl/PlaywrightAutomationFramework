@@ -10,8 +10,9 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
-from framework import actions, config
+from framework import config
 from framework.soft_assert import SoftAssert, holds
+from pages import HomePage, LoginPage, RegisterPage
 
 ACCOUNT = config.DEMO_ACCOUNT
 NEW = config.NEW_ACCOUNT
@@ -29,57 +30,50 @@ PRIVATE = ["/orders/", "/profile/", "/wallet/"]
 def test_sign_in_sign_out_and_registration(shop, base_url):
     page = shop
     soft = SoftAssert()
+    home = HomePage(page)
+    login, register = LoginPage(page), RegisterPage(page)
 
     with soft.step(f"Step 1 - sign in as {ACCOUNT['email']}"):
-        page.get_by_test_id("nav-login").click()
+        home.login_link.click()
         page.wait_for_url(re.compile("/login"))
-        actions.sign_in(page, ACCOUNT)
+        login.sign_in(ACCOUNT)
 
         soft.check(f"a confirmation names {ACCOUNT['name']}",
-                   lambda: expect(page.get_by_test_id("flash-success"))
+                   lambda: expect(home.success)
                    .to_have_text(f"Signed in as {ACCOUNT['name']}."))
         soft.check("signing in lands on the catalogue",
                    lambda: expect(page)
                    .to_have_title("Products | AItomationKart"))
 
-        actions.capture(page, "signed in")
+        home.capture("signed in")
 
     with soft.step("Step 2 - the header shows the account"):
         soft.check(f"the greeting names {ACCOUNT['name']}",
-                   lambda: expect(page.get_by_test_id("nav-profile"))
+                   lambda: expect(home.profile_link)
                    .to_have_text(f"Hi, {ACCOUNT['name']}"))
         soft.check("the wallet balance is shown",
-                   lambda: expect(page.get_by_test_id("nav-wallet-balance"))
+                   lambda: expect(home.wallet_balance)
                    .to_have_text(ACCOUNT["wallet"]))
         soft.check("Orders is offered",
-                   lambda: expect(page.get_by_test_id("nav-orders"))
-                   .to_be_visible())
+                   lambda: expect(home.orders_link).to_be_visible())
         soft.check("Sign out is offered",
-                   lambda: expect(page.get_by_test_id("nav-logout"))
-                   .to_be_visible())
+                   lambda: expect(home.logout_link).to_be_visible())
         soft.check("Sign in is no longer offered",
-                   lambda: expect(page.get_by_test_id("nav-login"))
-                   .to_have_count(0))
+                   lambda: expect(home.login_link).to_have_count(0))
         soft.check("Register is no longer offered",
-                   lambda: expect(page.get_by_test_id("nav-register"))
-                   .to_have_count(0))
+                   lambda: expect(home.register_link).to_have_count(0))
 
     with soft.step("Step 3 - sign out"):
-        page.get_by_test_id("nav-logout").click()
-        page.get_by_test_id("nav-login").wait_for()
+        home.sign_out()
 
         soft.check("Sign in is back",
-                   lambda: expect(page.get_by_test_id("nav-login"))
-                   .to_be_visible())
+                   lambda: expect(home.login_link).to_be_visible())
         soft.check("Register is back",
-                   lambda: expect(page.get_by_test_id("nav-register"))
-                   .to_be_visible())
+                   lambda: expect(home.register_link).to_be_visible())
         soft.check("Sign out is gone",
-                   lambda: expect(page.get_by_test_id("nav-logout"))
-                   .to_have_count(0))
+                   lambda: expect(home.logout_link).to_have_count(0))
         soft.check("the wallet is gone from the header",
-                   lambda: expect(page.get_by_test_id("nav-wallet"))
-                   .to_have_count(0))
+                   lambda: expect(home.wallet).to_have_count(0))
 
         # A closed session must not leave account pages reachable.
         for path in PRIVATE:
@@ -88,27 +82,25 @@ def test_sign_in_sign_out_and_registration(shop, base_url):
                        holds(f"/login?next={path}" in page.url,
                              f"landed on {page.url}"))
 
-        actions.capture(page, "guest asking for an account page")
+        home.capture("guest asking for an account page")
 
     with soft.step(f"Step 4 - register {NEW['email']}"):
-        page.get_by_test_id("nav-register").click()
+        home.register_link.click()
         page.wait_for_url(re.compile("/register"))
-        actions.register(page, NEW)
-        page.get_by_test_id("nav-logout").wait_for()
+        register.register(NEW)
+        home.logout_link.wait_for()
 
         soft.check("a confirmation welcomes the new account",
-                   lambda: expect(page.get_by_test_id("flash-success"))
+                   lambda: expect(home.success)
                    .to_have_text("Account created. Welcome!"))
         soft.check(f"the greeting names {NEW['name']}",
-                   lambda: expect(page.get_by_test_id("nav-profile"))
+                   lambda: expect(home.profile_link)
                    .to_have_text(f"Hi, {NEW['name']}"))
         soft.check("the new wallet is empty",
-                   lambda: expect(page.get_by_test_id("nav-wallet-balance"))
-                   .to_have_text("\u20b90"))
+                   lambda: expect(home.wallet_balance).to_have_text("\u20b90"))
         soft.check("the new account is signed in",
-                   lambda: expect(page.get_by_test_id("nav-logout"))
-                   .to_be_visible())
+                   lambda: expect(home.logout_link).to_be_visible())
 
-        actions.capture(page, "newly registered account")
+        home.capture("newly registered account")
 
     soft.assert_all()

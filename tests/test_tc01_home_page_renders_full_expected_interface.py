@@ -11,6 +11,7 @@ from playwright.sync_api import expect
 
 from framework import config
 from framework.soft_assert import SoftAssert
+from pages import HomePage
 
 
 @allure.feature("Catalogue")
@@ -22,140 +23,113 @@ from framework.soft_assert import SoftAssert
 def test_home_page_renders_full_expected_interface(shop):
     page = shop
     soft = SoftAssert()
+    home = HomePage(page)
 
     # Read width before anything resizes the window; used for tagline branch.
     width = page.evaluate("window.innerWidth")
     allure.dynamic.parameter("window width", f"{width}px")
 
-    with allure.step("Step 1 - page loads"):
+    with soft.step("Step 1 - page loads"):
         soft.check("page title mentions Products",
                    lambda: expect(page)
                    .to_have_title("Products | AItomationKart"))
         soft.check("page heading reads Products",
-                   lambda: expect(page.get_by_test_id("page-title"))
-                   .to_have_text("Products"))
+                   lambda: expect(home.heading).to_have_text("Products"))
 
         # Screenshot here so it files under Step 1, not at test end.
-        allure.attach(page.screenshot(full_page=True, type="jpeg", quality=70),
-                      name="home page on load",
-                      attachment_type=allure.attachment_type.JPG)
+        home.capture("home page on load")
 
-    with allure.step("Step 2 - header"):
+    with soft.step("Step 2 - header"):
         soft.check("wordmark reads AItomationKart",
-                   lambda: expect(page.get_by_test_id("nav-brand"))
-                   .to_have_text("AItomationKart"))
+                   lambda: expect(home.brand).to_have_text("AItomationKart"))
 
         # Tagline hides below breakpoint; assert the right state for width.
         if width >= config.TAGLINE_BREAKPOINT:
             soft.check("tagline is visible beside the wordmark",
-                       lambda: expect(page.get_by_test_id("tagline"))
-                       .to_be_visible())
+                       lambda: expect(home.tagline).to_be_visible())
         else:
             soft.check("tagline is hidden on a narrow window",
-                       lambda: expect(page.get_by_test_id("tagline"))
-                       .to_be_hidden())
+                       lambda: expect(home.tagline).to_be_hidden())
 
         soft.check("tagline reads read it correct through automation",
-                   lambda: expect(page.get_by_test_id("tagline"))
+                   lambda: expect(home.tagline)
                    .to_contain_text(config.TAGLINE))
         soft.check("search input is visible",
-                   lambda: expect(page.get_by_test_id("search-input"))
-                   .to_be_visible())
+                   lambda: expect(home.search_input).to_be_visible())
         soft.check("search button is visible",
-                   lambda: expect(page.get_by_test_id("search-submit"))
-                   .to_be_visible())
+                   lambda: expect(home.search_submit).to_be_visible())
         soft.check("theme toggle is visible",
-                   lambda: expect(page.get_by_test_id("theme-toggle"))
-                   .to_be_visible())
+                   lambda: expect(home.theme_toggle).to_be_visible())
         soft.check("cart link is visible",
-                   lambda: expect(page.get_by_test_id("nav-cart"))
-                   .to_be_visible())
+                   lambda: expect(home.cart_link).to_be_visible())
         soft.check("cart count starts at 0",
-                   lambda: expect(page.get_by_test_id("cart-count"))
-                   .to_have_text("0"))
+                   lambda: expect(home.cart_count).to_have_text("0"))
         soft.check("Sign in link is visible to a guest",
-                   lambda: expect(page.get_by_test_id("nav-login"))
-                   .to_be_visible())
+                   lambda: expect(home.login_link).to_be_visible())
         soft.check("Register link is visible to a guest",
-                   lambda: expect(page.get_by_test_id("nav-register"))
-                   .to_be_visible())
+                   lambda: expect(home.register_link).to_be_visible())
 
-    with allure.step("Step 3 - filter and sort controls"):
-        chips = page.get_by_test_id("category-filters").locator("a")
+    with soft.step("Step 3 - filter and sort controls"):
         # to_have_text(list) checks count, text, and order together.
         soft.check(f"{len(config.CATEGORIES)} category chips are offered",
-                   lambda: expect(chips)
+                   lambda: expect(home.chips)
                    .to_have_count(len(config.CATEGORIES)))
         soft.check("category chips read All, Apparel, Electronics, Footwear, "
                    "Home & Kitchen",
-                   lambda: expect(chips).to_have_text(config.CATEGORIES))
+                   lambda: expect(home.chips).to_have_text(config.CATEGORIES))
 
-        sort_select = page.get_by_test_id("sort-select")
         soft.check("sort dropdown is visible",
-                   lambda: expect(sort_select).to_be_visible())
+                   lambda: expect(home.sort_select).to_be_visible())
         soft.check(f"{len(config.SORT_OPTIONS)} sort options are offered",
-                   lambda: expect(sort_select.locator("option"))
+                   lambda: expect(home.sort_select.locator("option"))
                    .to_have_text(config.SORT_OPTIONS))
 
-    with allure.step("Step 4 - result count and product card anatomy"):
+    with soft.step("Step 4 - result count and product card anatomy"):
         count = config.EXPECTED_PRODUCT_COUNT
         soft.check(f"result count reads {count} products found",
-                   lambda: expect(page.get_by_test_id("result-count"))
+                   lambda: expect(home.result_count)
                    .to_have_text(f"{count} products found"))
         soft.check(f"{count} product cards are rendered",
-                   lambda: expect(page.get_by_test_id("product-card"))
-                   .to_have_count(count))
+                   lambda: expect(home.cards).to_have_count(count))
 
-        card = page.get_by_test_id("product-card").first
+        card = home.first_card()
         soft.check("first card shows a brand",
-                   lambda: expect(card.get_by_test_id("product-brand"))
-                   .not_to_be_empty())
+                   lambda: expect(card.brand).not_to_be_empty())
         soft.check("first card shows a name",
-                   lambda: expect(card.get_by_test_id("product-name"))
-                   .not_to_be_empty())
+                   lambda: expect(card.name).not_to_be_empty())
         soft.check("first card shows a price",
-                   lambda: expect(card.get_by_test_id("product-price"))
-                   .not_to_be_empty())
+                   lambda: expect(card.price).not_to_be_empty())
         soft.check("first card shows a rating",
-                   lambda: expect(card.get_by_test_id("product-rating"))
-                   .not_to_be_empty())
+                   lambda: expect(card.rating).not_to_be_empty())
         soft.check("first card shows a stock badge",
-                   lambda: expect(card.get_by_test_id("product-stock"))
-                   .not_to_be_empty())
-
-        # Card image has no testid; located by CSS for now.
+                   lambda: expect(card.stock).not_to_be_empty())
         soft.check("first card shows an image",
-                   lambda: expect(card.locator(".card-image .emoji"))
-                   .not_to_be_empty())
-
+                   lambda: expect(card.image).not_to_be_empty())
         soft.check("first card price is in rupees",
-                   lambda: expect(card.get_by_test_id("product-price"))
-                   .to_contain_text("\u20b9"))
+                   lambda: expect(card.price).to_contain_text("\u20b9"))
         soft.check("first card links to a product page",
-                   lambda: expect(card.locator("a").first)
+                   lambda: expect(card.link)
                    .to_have_attribute("href", re.compile(r"/product/")))
 
-    with allure.step("Step 5 - footer"):
+    with soft.step("Step 5 - footer"):
         soft.check("footer wordmark reads AItomationKart",
-                   lambda: expect(page.get_by_test_id("footer-brand"))
+                   lambda: expect(home.footer_brand)
                    .to_have_text("AItomationKart"))
         soft.check("footer repeats the tagline",
-                   lambda: expect(page.get_by_test_id("footer-purpose"))
+                   lambda: expect(home.footer_purpose)
                    .to_contain_text(config.TAGLINE))
         soft.check(f"footer lists {len(config.FRAMEWORKS)} frameworks",
-                   lambda: expect(page.get_by_test_id("footer-frameworks")
-                                  .locator("li"))
+                   lambda: expect(home.footer_frameworks)
                    .to_have_text(config.FRAMEWORKS))
         soft.check("footer carries the no-real-payments note",
-                   lambda: expect(page.get_by_test_id("footer-note"))
+                   lambda: expect(home.footer_note)
                    .to_contain_text("No real payments"))
         soft.check("footer carries the copyright",
-                   lambda: expect(page.get_by_test_id("footer-copyright"))
+                   lambda: expect(home.footer_copyright)
                    .to_contain_text("Atharva Joshi"))
 
         # Scroll footer into view before the screenshot.
-        page.get_by_test_id("footer-copyright").scroll_into_view_if_needed()
-        allure.attach(page.screenshot(type="jpeg", quality=70), name="footer",
-                      attachment_type=allure.attachment_type.JPG)
+        home.footer_copyright.scroll_into_view_if_needed()
+        home.capture("footer", full_page=False)
 
     soft.assert_all()

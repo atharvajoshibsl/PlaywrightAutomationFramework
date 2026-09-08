@@ -7,8 +7,9 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
-from framework import actions, config
+from framework import config
 from framework.soft_assert import SoftAssert, holds
+from pages import CartPage, CheckoutPage, LoginPage, OrdersPage
 
 ACCOUNT = config.DEMO_ACCOUNT
 
@@ -21,22 +22,23 @@ ACCOUNT = config.DEMO_ACCOUNT
 def test_checkout_is_refused_with_an_empty_cart(shop, base_url):
     page = shop
     soft = SoftAssert()
+    login, cart = LoginPage(page), CartPage(page)
+    checkout, orders = CheckoutPage(page), OrdersPage(page)
 
     with soft.step("Step 1 - sign in with nothing in the cart"):
-        page.goto(f"{base_url}/login")
-        actions.sign_in(page, ACCOUNT)
+        login.open(base_url)
+        login.sign_in(ACCOUNT)
 
         soft.check("the header counts no items",
-                   lambda: expect(page.get_by_test_id("cart-count"))
-                   .to_have_text("0"))
+                   lambda: expect(cart.cart_count).to_have_text("0"))
 
-        page.get_by_test_id("nav-cart").click()
+        cart.open_cart()
         soft.check("the cart shows its empty state",
-                   lambda: expect(page.get_by_test_id("empty-cart"))
+                   lambda: expect(cart.empty_message)
                    .to_have_text(config.CART_EMPTY))
 
     with soft.step("Step 2 - go straight to the checkout URL"):
-        page.goto(f"{base_url}/checkout/")
+        checkout.open(base_url)
 
         soft.check("checkout is not shown",
                    holds("/checkout" not in page.url,
@@ -45,24 +47,21 @@ def test_checkout_is_refused_with_an_empty_cart(shop, base_url):
                    holds(page.url.endswith("/cart/"),
                          f"landed on {page.url}"))
         soft.check("and told why",
-                   lambda: expect(page.get_by_test_id("flash-error"))
-                   .to_have_text(config.CART_EMPTY))
+                   lambda: expect(cart.error).to_have_text(config.CART_EMPTY))
         soft.check("no address or place-order control is offered",
-                   lambda: expect(page.get_by_test_id("place-order"))
+                   lambda: expect(checkout.place_order_button)
                    .to_have_count(0))
 
-        actions.capture(page, "checkout refused with an empty cart")
+        cart.capture("checkout refused with an empty cart")
 
     with soft.step("Step 3 - no empty order was created"):
-        page.get_by_test_id("nav-orders").click()
+        orders.open_orders()
 
         soft.check("order history is still empty",
-                   lambda: expect(page.get_by_test_id("no-orders"))
-                   .to_be_visible())
+                   lambda: expect(orders.empty_message).to_be_visible())
         soft.check("not a single order row exists",
-                   lambda: expect(page.get_by_test_id("order-row"))
-                   .to_have_count(0))
+                   lambda: expect(orders.rows).to_have_count(0))
 
-        actions.capture(page, "order history untouched")
+        orders.capture("order history untouched")
 
     soft.assert_all()

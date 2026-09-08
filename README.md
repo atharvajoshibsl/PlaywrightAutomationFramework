@@ -110,9 +110,18 @@ PlaywrightAutomation/
 ├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
 ├─ framework/
 │  ├─ config.py       What the app should contain — the suite's oracle
-│  ├─ actions.py      Screenshots, money parsing, and journeys tests reuse
+│  ├─ money.py        Prices to integers and back
 │  ├─ soft_assert.py  Assertions that record a failure instead of stopping
 │  └─ reporting.py    Report generation, history, run archiving
+├─ pages/            One class per page: its locators and its actions
+│  ├─ base.py         Header, flash messages and screenshots, shared
+│  ├─ home.py         The listing, its product cards and the footer
+│  ├─ product.py      Detail page and variants
+│  ├─ cart.py         Lines, summary, update and clear
+│  ├─ auth.py         Login and registration
+│  ├─ checkout.py     Addresses, summary, placing the order
+│  ├─ payment.py      Card form and what it reports
+│  └─ orders.py       History and a single order
 ├─ tests/
 │  ├─ test_tc01_home_page_renders_full_expected_interface.py
 │  ├─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
@@ -207,6 +216,11 @@ collects outcomes and fails once at the end, so one run tells you every broken
 check. Actions stay hard: if "Add to cart" never clicks, later assertions about
 the cart are noise.
 
+**Page objects hold the locators, tests hold the checks.** Each class in
+`pages/` names one page's elements and the actions on it, so a changed test id
+is a one-line fix in one file. What counts as correct stays in the test, where
+the case can be read against the plan.
+
 **Expected data lives in `framework/config.py`.** When the shop adds a
 category, one line changes there and every test that cares fails until it does.
 
@@ -226,11 +240,12 @@ steps inside one case. Rendering is covered once, by TC01.
 1. Read the case in `TEST_PLAN.xlsx`.
 2. Copy `tests/test_tc02_*.py` as the pattern: docstring, allure decorators,
    suite markers, one step per plan step.
-3. Take the `shop` fixture. Plain Playwright calls for actions, `soft.check`
-   for the observations after them.
-4. Put new expected values in `framework/config.py`.
-5. Call `soft.assert_all()` last.
-6. Name the file `test_tcNN_<case name in snake case>.py`.
+3. Take the `shop` fixture and build the page objects the case needs.
+4. Page objects for actions and locators, `soft.check` for the observations
+   after them. Add a locator to the page class rather than the test.
+5. Put new expected values in `framework/config.py`.
+6. Call `soft.assert_all()` last.
+7. Name the file `test_tcNN_<case name in snake case>.py`.
 
 ## Editing the test plan
 
@@ -243,8 +258,7 @@ py tools/build_test_plan.py
 
 ## Roadmap
 
-- Automate TC03 onward, one case at a time
-- Page objects once enough cases show what repeats
+- Automate TC11 onward, one case at a time
 - GitHub Actions with the report published to Pages
 - Parallel execution, and an API-level layer alongside the UI cases
 - Cache accepted heals to disk, and retrieval over the plan so drafts do not
