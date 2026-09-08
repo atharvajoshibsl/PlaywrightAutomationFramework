@@ -12,7 +12,7 @@ Two helpers use an LLM: one drafts test cases from a feature spec, the other
 suggests a replacement for a locator the page has lost. Neither decides whether
 a test passes.
 
-TC01 to TC10 are automated, plus the self-healing demo; the rest are added one
+TC01 to TC10 are automated, plus the self-healing demo; the rest are automated one
 at a time.
 
 - **Application under test:** https://atharvajoshi.pythonanywhere.com
