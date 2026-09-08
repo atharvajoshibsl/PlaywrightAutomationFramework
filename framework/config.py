@@ -1,30 +1,15 @@
-"""What the application is expected to contain.
-Basically Test Data
-These are the suite's oracle: the answer to "what is correct" lives here, in
-one readable place, rather than being scattered through assertions. When the
-shop adds a category, one line changes here and every test that cares fails
-until it does.
+"""Expected application data used as test oracles."""
 
-The target URL is deliberately absent - that is environment, not expectation,
-and pytest.ini owns it so it can be overridden per run.
-"""
-
-# The shop seeds this many products, and every reset restores the count.
+# Product count after each reset.
 EXPECTED_PRODUCT_COUNT = 16
 
-# Below this window width the stylesheet hides the header tagline on purpose,
-# so it cannot collide with the search box.
+# Tagline hidden below this width (CSS).
 TAGLINE_BREAKPOINT = 1180
 
-# "All" is a chip too, not just the four real categories.
+# "All" is a category chip too.
 CATEGORIES = ["All", "Apparel", "Electronics", "Footwear", "Home & Kitchen"]
 
-# What each category chip should list, keyed by the slug its data-testid uses.
-# A card carries no category of its own, so naming the products is the only way
-# to prove a filter kept exactly the right ones and dropped the rest.
-#
-# The order matters: Relevance sorts by insertion order, so this is also the
-# order the cards appear in until another sort is chosen.
+# Products per category slug. Order matches Relevance sort.
 CATEGORY_PRODUCTS = {
     "apparel": [
         "Cotton T-Shirt",

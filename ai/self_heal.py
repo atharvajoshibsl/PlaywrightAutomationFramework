@@ -1,13 +1,8 @@
-"""Suggests replacements for locators a page no longer has.
-
-Used by tests/test_self_healing_demo.py, or on its own for one locator:
+"""Suggest locator replacements when a testid is missing.
 
     py ai/self_heal.py [testid] ["what it is for"] [path]
 
-Suggests only: nothing is repaired and no verdict changes. The model picks
-which element was meant; Playwright then decides how to reach it, by trying
-locator expressions against the live page and keeping the first that resolves
-to exactly one element.
+Suggest-only: the model picks the element; Playwright tries locators live.
 """
 
 import inspect
@@ -28,14 +23,13 @@ logging.getLogger("google_genai").setLevel(logging.ERROR)
 BASE_URL = "https://atharvajoshi.pythonanywhere.com"
 MODEL = "gemini-3.5-flash-lite"
 
-# A missing element may be a real bug, so weak suggestions are thrown away.
+# Weak suggestions are dropped; a missing element may be a real bug.
 MIN_CONFIDENCE = 0.6
 
 HERE = Path(__file__).parent
 _client = None
 
-# One row per testid, skipping anything not rendered. role and name are what
-# get_by_role would need; texts holds up to three samples of shared testids.
+# One row per testid (visible only). role/name feed get_by_role.
 ELEMENTS_JS = """() => {
   const TAG_ROLES = {a: 'link', button: 'button', select: 'combobox',
     textarea: 'textbox', h1: 'heading', h2: 'heading', h3: 'heading',
@@ -53,7 +47,7 @@ ELEMENTS_JS = """() => {
     return TAG_ROLES[tag] || '';
   };
 
-  // Approximates the accessible name: verified later by a real locator count.
+  // Rough accessible name; locator count verifies later.
   const nameOf = (element, tag) => {
     const aria = element.getAttribute('aria-label');
     if (aria) return aria;
@@ -80,7 +74,7 @@ ELEMENTS_JS = """() => {
     const tag = element.tagName.toLowerCase();
     const id = element.getAttribute('data-testid') || '';
 
-    // Own text nodes first: innerText on a wrapper repeats all its children.
+    // Own text only; innerText on a wrapper includes children.
     const own = clean([...element.childNodes]
         .filter(node => node.nodeType === Node.TEXT_NODE)
         .map(node => node.textContent).join(' '));
@@ -134,7 +128,7 @@ ANSWER = {
 
 
 def api():
-    """Built on first use, so importing this file needs no key."""
+    """Lazy client; import does not need an API key."""
     global _client
     if _client is None:
         key = (HERE / "api_key.txt").read_text(encoding="utf-8-sig").strip()
@@ -143,10 +137,10 @@ def api():
 
 
 def elements(page):
-    """What a test could target on a page that is already open."""
+    """Targetable elements on an open page."""
     found = page.evaluate(ELEMENTS_JS)
     for item in found:
-        # Empty fields would be tokens spent saying nothing.
+        # Drop empty fields from the model payload.
         for field in [key for key, value in item.items() if not value]:
             del item[field]
         if item.get("count") == 1:
@@ -193,7 +187,7 @@ def suggest(testid, purpose, found):
 
 
 def is_ok(answer, found):
-    """The model proposes, code decides: confident, and really on the page."""
+    """True if confidence is high and the selector is on the page."""
     return (answer["confidence"] >= MIN_CONFIDENCE
             and match(answer["selector"], found) is not None)
 
@@ -220,41 +214,27 @@ def options(page, item):
 
 
 def best_locator(page, item):
-    """The first expression that resolves to exactly one element.
-
-    Asked of the live page rather than reasoned about, so what comes back is
-    known to work. Falls back to the best guess, flagged as not unique.
-    """
+    """First locator with count==1 on the live page, else best guess."""
     tried = options(page, item)
     for code, locator in tried:
         try:
             if locator.count() == 1:
                 return code, True
         except PlaywrightError:
-            # An unusable role or text: try the next expression.
+            # Bad role or text; try the next expression.
             continue
     return (tried[0][0], False) if tried else (None, False)
 
 
 class Healer:
-    """Collects the testids a test asks for, then heals only the missing ones.
-
-    A test calls find() wherever it would call page.get_by_test_id(), then
-    report() once at the end. The page is read a single time, in the browser
-    the test is already using, and the model is asked only about locators that
-    are genuinely not there.
-    """
+    """Collect testids via find(), then suggest fixes for missing ones."""
 
     def __init__(self, page):
         self.page = page
         self.wanted = {}
 
     def find(self, testid, purpose):
-        """The locator the test wanted, remembered with its purpose and place.
-
-        The caller's frame gives the file and line to edit, so a suggestion
-        says where to apply it as well as what to write.
-        """
+        """Remember testid, purpose, and caller file:line for suggestions."""
         caller = inspect.currentframe().f_back
         self.wanted[testid] = {
             "purpose": purpose,
@@ -263,11 +243,7 @@ class Healer:
         return self.page.get_by_test_id(testid)
 
     def report(self):
-        """What to use instead, per broken locator, in terminal and report.
-
-        Silent when every locator resolved, so a passing test gains no step
-        and costs no call.
-        """
+        """Print and attach suggestions for missing locators; silent if none."""
         found = elements(self.page)
         missing = [(testid, asked) for testid, asked in self.wanted.items()
                    if not match(testid, found)]
@@ -315,7 +291,7 @@ if __name__ == "__main__":
         print(f"  {len(found)} elements offered to the model\n")
         print(f'actual:    page.get_by_test_id("{testid}")')
 
-        # Checked before anything is spent: a working locator is not a heal.
+        # Skip the model call if the testid is still on the page.
         if match(testid, found):
             print("suggested: nothing to heal, it is still on the page")
             sys.exit(0)

@@ -1,20 +1,6 @@
-"""Turns a finished run into one HTML report plus a small archived record.
+"""Build Allure HTML report and archive raw results after each run.
 
-Allure's model: each run writes fresh results, and a `history` folder carried
-over from the previous report is what produces the trend chart and each test's
-record of earlier runs. Since --clean-alluredir wipes the results directory
-every run, that history has to be stashed somewhere it survives - which is all
-allure-history/ is for.
-
-A single-file report embeds everything, history included, but emits no history
-folder of its own. So a run generates twice: once normally, purely to harvest
-the history folder, and once as a single file for you to actually open.
-
-Only the newest report is kept as HTML. What gets archived per run is the raw
-results instead, because a single-file report is around 3 MB of which 1.9 MB
-is a byte-identical copy of Allure's viewer and only ~20 KB is the run's own
-data. Zipped results are roughly a tenth of the size and lose nothing: any
-archived run can be rendered again with tools/view_run.py.
+History lives in allure-history/ because --clean-alluredir wipes results.
 """
 
 import json
@@ -28,7 +14,7 @@ REPORT_NAME = "AItomationKart"
 
 
 def write_environment(results_dir, values):
-    """Fills the Environment panel, so a report says what it ran against."""
+    """Write environment.properties for the Environment panel."""
     results_dir.mkdir(parents=True, exist_ok=True)
     lines = [f"{key}={value}" for key, value in values.items()]
     (results_dir / "environment.properties").write_text(
@@ -36,12 +22,9 @@ def write_environment(results_dir, values):
 
 
 def write_executor(results_dir, counter_file):
-    """Numbers and names this run, so the trend has a label per execution.
+    """Assign run number and write executor.json for trend labels.
 
-    No reportUrl here on purpose. Allure would render the History rows as
-    links to it, but it treats the value as a folder and appends
-    "/#testresult/<uid>" - which cannot address a test inside a single-file
-    archive. It produced links that led nowhere, so it is left out.
+    No reportUrl: Allure history links break with single-file reports.
     """
     order = 1
     if counter_file.exists():
@@ -61,44 +44,34 @@ def write_executor(results_dir, counter_file):
 
 
 def run_stem(order, moment):
-    """A name that sorts chronologically and survives Windows.
-
-    Zero-padded so run-010 does not sort before run-9, and colons are out
-    because Windows will not have them in a filename.
-    """
+    """Archive filename: zero-padded order, no colons (Windows)."""
     return f"run-{order:03d}_{moment:%Y-%m-%d_%H-%M-%S}"
 
 
 def archive_results(results_dir, runs_dir, order, moment):
-    """Zips this run's raw results so it can be re-rendered later."""
+    """Zip this run's raw results for later replay."""
     runs_dir.mkdir(parents=True, exist_ok=True)
     base = runs_dir / run_stem(order, moment)
-    # make_archive appends its own .zip, hence base without a suffix.
+    # make_archive appends .zip itself.
     return Path(shutil.make_archive(str(base), "zip", root_dir=results_dir))
 
 
 def summarise(runs_dir):
-    """How many runs are archived and what they weigh, in MB."""
+    """Return archived run count and total size in MB."""
     files = list(runs_dir.glob("run-*.zip"))
     total = sum(path.stat().st_size for path in files)
     return len(files), total / (1024 * 1024)
 
 
 def build(results_dir, report_dir, history_dir, single_file):
-    """Generates the report. Returns the HTML path, or None if it could not.
-
-    Never raises: a reporting problem should not turn a green run red, so
-    anything that goes wrong is printed and the raw results are left in place
-    to render by hand.
-    """
+    """Build report; return HTML path or None. Never raises."""
     allure = shutil.which("allure")
     if not allure:
         print(f"\n[report] allure is not on PATH, so no HTML was built.\n"
               f"[report] Raw results are in {results_dir}")
         return None
 
-    # Feed previous runs back in before generating, or every report thinks
-    # this was the first one.
+    # Copy saved history into results before generate.
     if history_dir.exists():
         shutil.copytree(history_dir, results_dir / "history",
                         dirs_exist_ok=True)
@@ -106,13 +79,12 @@ def build(results_dir, report_dir, history_dir, single_file):
     try:
         _generate(allure, results_dir, report_dir)
 
-        # Harvest the history this run produced for the next one to use.
+        # Save history from this run for the next one.
         produced = report_dir / "history"
         if produced.exists():
             shutil.copytree(produced, history_dir, dirs_exist_ok=True)
 
-        # Single-file mode writes index.html into whatever directory it is
-        # given, so it goes somewhere temporary and gets renamed.
+        # Single-file mode writes to a temp dir; copy index.html out.
         with tempfile.TemporaryDirectory() as staging:
             _generate(allure, results_dir, Path(staging), single=True)
             shutil.copyfile(Path(staging) / "index.html", single_file)

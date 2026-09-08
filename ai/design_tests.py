@@ -1,11 +1,8 @@
-"""Drafts test cases for a feature. Usage: py ai/design_tests.py
+"""Draft test cases from ai/feature.txt.
 
-Reads ai/feature.txt, asks what you want, and writes the cases straight to
-ai/ai_test_cases.csv in the same columns as the Test Cases sheet. Read them
-there, say what to improve, and the same rows are rewritten in place.
+    py ai/design_tests.py
 
-Nothing ever writes to TEST_PLAN.xlsx - that stays hand-written, and these are
-drafts to review.
+Writes ai/ai_test_cases.csv. Does not touch TEST_PLAN.xlsx.
 """
 
 import csv
@@ -20,21 +17,19 @@ logging.getLogger("google_genai").setLevel(logging.ERROR)
 
 MODEL = "gemini-3.5-flash-lite"
 
-# AI drafts carry their own prefix, so they are never confused with the
-# hand-written TC01-TC17.
+# AI ids use their own prefix, separate from hand-written TC01-TC17.
 ID_PREFIX = "AI"
 
 HERE = Path(__file__).parent
 FEATURE_FILE = HERE / "feature.txt"
 OUT_FILE = HERE / "ai_test_cases.csv"
 
-# Same columns, same order, as the Test Cases sheet.
+# Same columns as the Test Cases sheet.
 HEADERS = ["Test Case ID", "Feature Area", "Suite", "Scope", "Priority",
            "Test Case Name", "Preconditions", "Steps", "Expected Result",
            "Automation Status", "Notes"]
 
-# The model fills these eight. The enums make an invalid Suite, Scope or
-# Priority impossible rather than merely discouraged.
+# Model fills eight fields; enums restrict Suite, Scope and Priority.
 SCHEMA = {
     "type": "array",
     "items": {
@@ -57,10 +52,7 @@ SCHEMA = {
     },
 }
 
-# Two real cases from the plan. Showing the house style beats describing it, and
-# these are the biggest single lever on how closely a draft matches. TC01 is
-# here because it is the one rendering case, and without it the model splits
-# presence checks into one case per page section.
+# Two real plan cases as style examples (TC01 covers full-page rendering).
 EXAMPLES = """{
   "Feature Area": "Interface",
   "Suite": "Smoke",
@@ -180,12 +172,7 @@ def id_number(row):
 
 
 def save(cases, first):
-    """Writes this run's rows, replacing the draft it wrote a moment ago.
-
-    Rewrites the whole file rather than appending, so a redraft updates the same
-    rows instead of leaving the rejected version behind. Rows from earlier runs
-    are numbered below `first` and are copied through untouched.
-    """
+    """Write rows for this run; redraft replaces the same ids in place."""
     kept = []
     if OUT_FILE.exists():
         with OUT_FILE.open(encoding="utf-8-sig", newline="") as handle:

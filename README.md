@@ -3,15 +3,21 @@
 Python + Playwright + pytest test suite for [AItomationKart](https://atharvajoshi.pythonanywhere.com),
 a demo e-commerce site built specifically to be automated against.
 
-> **Status: work in progress.** The framework skeleton, fixtures and Allure
-> reporting are in place, and 2 of the 17 planned test cases are automated.
-> The remaining cases are written up in `TEST_PLAN.xlsx` and are being added
-> one at a time, so this repository grows case by case rather than landing
-> fully formed.
+Functional UI cases driven by `data-testid` locators, soft assertions that
+report every failed check in one run, and a cumulative Allure report with
+per-step screenshots. The test plan is an Excel workbook generated from Python,
+so it stays reviewable as a diff.
+
+Two of the tools are LLM-backed, both by retrieval rather than recall: test
+cases are drafted from a feature specification, and a locator the page has lost
+is repaired by reading the page's own elements. Neither ever decides a verdict.
+
+3 of 18 planned cases are automated; the rest are written up in `TEST_PLAN.xlsx`
+and added one at a time.
 
 - **Application under test:** https://atharvajoshi.pythonanywhere.com
 - **Application source:** https://github.com/atharvajoshibsl/AItomationKart
-- **Test plan:** `TEST_PLAN.xlsx` — 17 active cases, 9 deferred to a later phase
+- **Test plan:** `TEST_PLAN.xlsx` — 18 active cases, 9 deferred to a later phase
 
 ## Automation status
 
@@ -34,6 +40,7 @@ a demo e-commerce site built specifically to be automated against.
 | TC15 | Profile details and address book | Profile | Regression | Planned |
 | TC16 | Health and reset return a known starting state | Test API | Smoke | Planned |
 | TC17 | Each visitor is isolated from another's reset | Test API | Regression | Planned |
+| TC18 | Self-healing suggests fixes for stale locators | Framework | Regression | Automated |
 
 The full steps, preconditions and expected results for every case live in
 `TEST_PLAN.xlsx`. The nine `TCF_*` rows below the active table are deferred
@@ -137,7 +144,7 @@ PlaywrightAutomation/
 │                     report build. pytest finds this automatically.
 ├─ pytest.ini         Target URL, Allure output, marker declarations
 ├─ requirements.txt
-├─ TEST_PLAN.xlsx     The reviewable plan: 17 active cases, 9 deferred
+├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
 ├─ framework/
 │  ├─ config.py       What the app is expected to contain — the suite's oracle
 │  ├─ soft_assert.py  Assertions that record a failure instead of ending the test
@@ -155,13 +162,44 @@ PlaywrightAutomation/
    └─ view_run.py         Rebuilds an archived run into HTML
 ```
 
-## AI capability (exploratory)
+## AI capability
 
-`ai/` is where the LLM work goes, and `framework/` never imports it. That
-separation is deliberate: everything in `framework/` reaches the same verdict on
-the same page every time, and a model does not promise that. One test imports
-`ai/` — the self-healing demo below — and even there the model only annotates a
-failure it had no part in deciding.
+Two places an LLM earns its keep, both driven by **retrieval rather than
+recall**: the model is never asked what it remembers about e-commerce sites, it
+is handed retrieved context and asked to reason over it.
+
+| Tool | Retrieved context | Output |
+|------|-------------------|--------|
+| Test design — `ai/design_tests.py` | The feature spec in `ai/feature.txt`, plus TC01 and TC02 as worked examples of house style | Draft cases in the plan's own 11 columns |
+| Self-healing — `ai/self_heal.py` | The live page's own elements, read with one `page.evaluate` | A verified locator to replace one the page has lost |
+
+Retrieval is what makes the answers checkable. A drafted case can be held
+against the acceptance criteria it came from, and a suggested locator must
+appear in the element list that came off the page seconds earlier. Both outputs
+are validated in Python before you see them — a schema with enums for the
+drafts, a real `count() == 1` for the locators.
+
+`framework/` never imports `ai/`, so the deterministic core stays free of the
+model. One test imports it — the self-healing demo — and even there the model
+only annotates a failure it had no part in deciding.
+
+Embeddings-based retrieval over the existing plan, so drafts cannot duplicate
+coverage, is on the roadmap rather than in the repository.
+
+### Seeing it in the Allure report
+
+Run the demo, then open `reports/latest-report.html`:
+
+```powershell
+pytest tests/test_self_healing_demo.py -s
+```
+
+Find **TC18 — Self-healing suggests fixes for stale locators**. Because it is
+`xfail`, Allure files it under skipped rather than failed. Open it and the last
+step reads `Healing suggestions for 4 of 6 locators`; its
+`self-healing suggestions` attachment holds the actual locator, the suggested
+one, and the file and line to edit. The steps above it are red per failed check,
+and `check summary` carries the tally.
 
 ### Test case design
 

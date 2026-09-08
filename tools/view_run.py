@@ -1,11 +1,7 @@
-"""Renders an archived run back into a report and opens it.
+"""Rebuild and open an archived Allure run.
 
-Runs are archived as zipped raw results rather than finished HTML, because a
-single-file report is mostly a duplicate copy of Allure's viewer. Rebuilding
-one is cheap, so the archive stays small and nothing is lost.
-
-    py tools/view_run.py        # list what is archived
-    py tools/view_run.py 7      # rebuild and open run 7
+    py tools/view_run.py        # list archives
+    py tools/view_run.py 7      # rebuild run 7
 """
 
 import shutil

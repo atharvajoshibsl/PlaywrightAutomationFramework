@@ -1,7 +1,6 @@
-"""TC01 - Home page renders the full expected interface
+"""TC01 - Home page renders the full expected interface.
 
-Walks the home page once and checks the header, filter and sort controls,
-result count, product card anatomy and footer all render and are populated.
+Checks header, filters, product cards, and footer on load.
 """
 
 import re
@@ -24,8 +23,7 @@ def test_home_page_renders_full_expected_interface(shop):
     page = shop
     soft = SoftAssert()
 
-    # Read once, before anything can resize the window. Recorded as a
-    # parameter so the report explains the tagline branch below.
+    # Read width before anything resizes the window; used for tagline branch.
     width = page.evaluate("window.innerWidth")
     allure.dynamic.parameter("window width", f"{width}px")
 
@@ -37,10 +35,7 @@ def test_home_page_renders_full_expected_interface(shop):
                    lambda: expect(page.get_by_test_id("page-title"))
                    .to_have_text("Products"))
 
-        # Attached inside the step, so the report files it under Step 1 rather
-        # than at the end of the test. JPEG rather than PNG: this page is
-        # mostly flat colour, and it is a quarter of the size for evidence
-        # nobody inspects pixel by pixel.
+        # Screenshot here so it files under Step 1, not at test end.
         allure.attach(page.screenshot(full_page=True, type="jpeg", quality=70),
                       name="home page on load",
                       attachment_type=allure.attachment_type.JPG)
@@ -50,9 +45,7 @@ def test_home_page_renders_full_expected_interface(shop):
                    lambda: expect(page.get_by_test_id("nav-brand"))
                    .to_have_text("AItomationKart"))
 
-        # The tagline is hidden below the breakpoint on purpose so it cannot
-        # collide with the search box. Assert whichever behaviour this width
-        # should produce, rather than skipping: both are worth catching.
+        # Tagline hides below breakpoint; assert the right state for width.
         if width >= config.TAGLINE_BREAKPOINT:
             soft.check("tagline is visible beside the wordmark",
                        lambda: expect(page.get_by_test_id("tagline"))
@@ -62,7 +55,6 @@ def test_home_page_renders_full_expected_interface(shop):
                        lambda: expect(page.get_by_test_id("tagline"))
                        .to_be_hidden())
 
-        # Text is in the DOM either way, so this one needs no condition.
         soft.check("tagline reads read it correct through automation",
                    lambda: expect(page.get_by_test_id("tagline"))
                    .to_contain_text(config.TAGLINE))
@@ -90,8 +82,7 @@ def test_home_page_renders_full_expected_interface(shop):
 
     with allure.step("Step 3 - filter and sort controls"):
         chips = page.get_by_test_id("category-filters").locator("a")
-        # to_have_text with a list asserts count, text and order at once, so
-        # a missing, extra, renamed or reordered chip all fail here.
+        # to_have_text(list) checks count, text, and order together.
         soft.check(f"{len(config.CATEGORIES)} category chips are offered",
                    lambda: expect(chips)
                    .to_have_count(len(config.CATEGORIES)))
@@ -132,9 +123,7 @@ def test_home_page_renders_full_expected_interface(shop):
                    lambda: expect(card.get_by_test_id("product-stock"))
                    .not_to_be_empty())
 
-        # The card image is the one element on this page with no data-testid,
-        # so it goes through a class. Worth adding an id to the template
-        # rather than leaving a CSS selector in the suite.
+        # Card image has no testid; located by CSS for now.
         soft.check("first card shows an image",
                    lambda: expect(card.locator(".card-image .emoji"))
                    .not_to_be_empty())
@@ -164,8 +153,7 @@ def test_home_page_renders_full_expected_interface(shop):
                    lambda: expect(page.get_by_test_id("footer-copyright"))
                    .to_contain_text("Atharva Joshi"))
 
-        # Scrolled first so the viewport shot actually frames the footer,
-        # which is the thing this step is about.
+        # Scroll footer into view before the screenshot.
         page.get_by_test_id("footer-copyright").scroll_into_view_if_needed()
         allure.attach(page.screenshot(type="jpeg", quality=70), name="footer",
                       attachment_type=allure.attachment_type.JPG)

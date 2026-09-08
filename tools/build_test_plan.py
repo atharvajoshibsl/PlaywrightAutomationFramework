@@ -1,26 +1,8 @@
-"""Generates TEST_PLAN.xlsx from the case lists below.
-
-The spreadsheet is the artefact you review and hand around; this file is the
-source of truth for it. Edit cases here and re-run, so the plan stays
-reviewable in git rather than only inside a binary.
+"""Build TEST_PLAN.xlsx from the case lists below.
 
     py tools/build_test_plan.py
 
-Regenerating overwrites the workbook, so make edits here rather than in Excel.
-Close the workbook first — Excel holds a write lock while it is open.
-
-Two tables land on the Test Cases sheet. CASES is the set being automated now.
-FUTURE sits below it, carries TCF_ ids, and holds cases deferred to a later
-phase. Only CASES is inside the autofilter range, so filtering the working set
-never pulls deferred rows in with it.
-
-Scope: functional behaviour only, and one case per page or per flow rather
-than one case per click. Where several checks happen on the same page they are
-steps inside one case. Interface rendering is covered once, by TC01.
-
-Case ids are written literally rather than generated from position, so
-dropping a case leaves a gap instead of renumbering everything below it and
-invalidating any notes that refer to a number.
+Edit cases here and re-run. Close Excel first (write lock).
 """
 
 from pathlib import Path
@@ -32,11 +14,8 @@ from openpyxl.worksheet.datavalidation import DataValidation
 
 OUT = Path(__file__).resolve().parent.parent / "TEST_PLAN.xlsx"
 
-# Every row: id, name, area, suite, scope, priority, preconditions, steps,
-# expected. Suite is the lowest one the case belongs to — a Regression run
-# includes everything, Sanity includes Sanity + Smoke, Smoke only Smoke.
-# Scope is Feature, End-to-End when the case crosses feature boundaries, or
-# Negative when the whole point of the case is rejecting bad input.
+# Row shape: id, name, area, suite, scope, priority, pre, steps, expected.
+# Suite = lowest tier; scope = Feature, End-to-End, or Negative.
 
 FRESH = ("Shop reset to its starting state: 16 products, 53 variants, "
          "2 accounts, no orders")
@@ -265,10 +244,26 @@ CASES = [
      "3. Re-read context A's cart.",
      "Context A is untouched. Every visitor gets their own copy of the shop, "
      "which is what makes parallel test runs and a public demo safe."),
+
+    # --------------------------------------------------------------- framework
+    ("TC18", "Self-healing suggests fixes for stale locators",
+     "Framework", "Regression", "Feature", "P3", FRESH,
+     "1. Ask for six home page elements through the healing wrapper: two by "
+     "their real test ids, three by ids the application no longer uses, and "
+     "one for a control the page does not have at all.\n"
+     "2. Let the six visibility checks run and record their outcomes.\n"
+     "3. Read the page's elements once and ask the model only about the ids "
+     "that are missing.\n"
+     "4. Try each suggested locator against the live page.",
+     "The two real ids pass and cost nothing. Each renamed id gets a whole "
+     "locator expression, verified to resolve to exactly one element, with "
+     "the file and line to change; the absent control gets no suggestion and "
+     "is called out as a possible defect instead. Suggestions appear in the "
+     "terminal and as an Allure attachment. The case is marked xfail because "
+     "its failures are the demonstration."),
 ]
 
-# Deferred to a later phase. Same shape as CASES; the ids carry a TCF_ prefix
-# so a deferred case can never be confused with one in the working set.
+# Deferred cases; TCF_ prefix keeps them out of the working set.
 FUTURE = [
     ("TCF_01", "Delivery fee and the free-delivery threshold",
      "Cart", "Sanity", "Feature", "P3", FRESH,
@@ -404,10 +399,7 @@ HEADERS = [
     ("Notes", 22),
 ]
 
-# CASES keeps its authoring order (id, name, area, suite, scope, priority,
-# preconditions, steps, expected) because that reads better in source. The
-# sheet wants the classification columns before the prose, so rows are
-# reordered on the way out.
+# Source order differs from sheet order; COLUMN_ORDER maps columns out.
 COLUMN_ORDER = [0, 2, 3, 4, 5, 1, 6, 7, 8]
 SUITE_COLUMN = COLUMN_ORDER.index(3)
 SCOPE_COLUMN = COLUMN_ORDER.index(4)
@@ -442,8 +434,7 @@ def case_rows(ws, cases, status, note):
             cell.border = BORDER
             if index % 2:
                 cell.fill = BAND_FILL
-        # Smoke gates every run and Negative cases are the ones people forget
-        # to look for, so both are visible without opening the filter.
+        # Highlight Smoke and Negative so they stand out in the sheet.
         if case[3] == "Smoke":
             row[SUITE_COLUMN].fill = SMOKE_FILL
             row[SUITE_COLUMN].font = Font(bold=True)
@@ -458,8 +449,7 @@ def write_cases(ws):
     case_rows(ws, CASES, "Not started", "")
     active_last = ws.max_row
 
-    # Autofilter covers the working set only, so filtering it never drags
-    # deferred rows in alongside.
+    # Autofilter covers CASES only, not deferred rows below.
     ws.auto_filter.ref = f"A1:{get_column_letter(len(HEADERS))}{active_last}"
 
     ws.append([])
@@ -624,7 +614,7 @@ def write_summary(ws):
         ws.append([])
 
     counts("By suite", 3, ["Smoke", "Sanity", "Regression"])
-    counts("By priority", 5, ["P1", "P2"])
+    counts("By priority", 5, ["P1", "P2", "P3"])
     counts("By scope", 4, ["Feature", "End-to-End", "Negative"])
 
     areas = []

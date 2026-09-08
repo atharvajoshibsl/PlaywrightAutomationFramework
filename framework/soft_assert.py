@@ -1,14 +1,6 @@
-"""Assertions that record a failure instead of ending the test.
+"""Soft assertions: collect failures and fail once at the end.
 
-A rendering case verifies dozens of independent facts about one page. With
-plain asserts the first bad one hides the rest, so you fix, re-run, and
-discover the next - once per defect. Collecting them means one run tells you
-everything.
-
-This is only right for *verifications*. Actions must still fail hard: if
-"Add to cart" does not click, every later assertion about the cart is noise
-pointing at the wrong thing. So use plain Playwright calls for actions, and
-SoftAssert.check for the observations that follow them.
+Use for verifications only; actions should fail hard on first error.
 """
 
 from contextlib import contextmanager
@@ -17,20 +9,11 @@ import allure
 
 
 class _StepFailed(AssertionError):
-    """Raised to colour a step red, then swallowed by SoftAssert.step.
-
-    An AssertionError so Allure files the step as failed rather than broken.
-    """
+    """Marks an Allure step failed (not broken)."""
 
 
 def holds(condition, detail):
-    """Wraps a plain true-or-false fact so SoftAssert.check can run it.
-
-    check() wants a callable, and Playwright's expect() is one - but expect()
-    only talks about elements. This covers the few checks about values already
-    read off the page, such as whether prices came back in order, where there
-    is no single element to point at.
-    """
+    """Wrap a boolean check as a callable for SoftAssert.check."""
     def assertion():
         assert condition, detail
 
@@ -46,13 +29,7 @@ class SoftAssert:
 
     @contextmanager
     def step(self, name):
-        """An Allure step that turns red if any check inside it failed.
-
-        Use instead of allure.step around soft checks. Without this the step
-        stays green: check() swallows the failure, so nothing propagates out
-        of the step for Allure to see. Raising on the way out fixes the
-        colour, and catching it here keeps the test running.
-        """
+        """Allure step that turns red if a soft check inside failed."""
         before = len(self.failures)
         try:
             with allure.step(name):
@@ -65,21 +42,13 @@ class SoftAssert:
             pass
 
     def check(self, label, assertion):
-        """Runs one assertion, records the outcome, and never raises.
-
-        The assertion arrives as a callable rather than a value because it
-        has to run *inside* the try block. Passing expect(...).to_be_x()
-        directly would execute it at the call site and raise there.
-        """
+        """Run one assertion; record failure without raising."""
         try:
-            # Wrapping in allure.step first means the report shows this check
-            # as a failed step: the exception sets the step status on its way
-            # out, and the except below catches it after the step has closed.
+            # Run inside allure.step so failures show in the report.
             with allure.step(label):
                 assertion()
         except AssertionError as error:
-            # Playwright's expect() raises with a multi-line diff. The first
-            # line carries the useful part.
+            # First line is enough from Playwright's multi-line error.
             detail = str(error).strip().splitlines()[0]
             self.failures.append((label, detail))
             print(f"  FAIL  {label}\n        {detail}")
@@ -88,12 +57,7 @@ class SoftAssert:
             print(f"  ok    {label}")
 
     def assert_all(self):
-        """Fails the test if anything was recorded as failed.
-
-        Called explicitly at the end of a test rather than in fixture
-        teardown, because pytest reports a teardown exception as an error
-        rather than a failure and that muddies the report.
-        """
+        """Fail if any checks failed. Call at end of test, not teardown."""
         total = self.passed + len(self.failures)
         summary = (f"{self.passed} passed, {len(self.failures)} failed, "
                    f"{total} checks total")

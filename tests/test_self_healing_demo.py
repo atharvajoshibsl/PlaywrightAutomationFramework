@@ -1,13 +1,6 @@
-"""Self-healing demo - suggests fixes for locators this test gets wrong.
+"""Self-healing demo: wrong testids fail, healer suggests fixes.
 
-Three of the testids below never existed on the home page: the application
-calls those elements something else. Their checks fail, and the healer then
-reads the page once and suggests a replacement for each. A fourth asks for an
-element that is genuinely absent, which it should refuse to heal rather than
-point at the nearest lookalike.
-
-Marked xfail because the failures are the whole demonstration - a permanently
-red suite would be worse than no demo. To watch it fail for real:
+Three renamed locators plus one missing element. Marked xfail on purpose.
 
     pytest tests/test_self_healing_demo.py -s --runxfail
 """
@@ -19,8 +12,7 @@ from playwright.sync_api import expect
 from ai.self_heal import Healer
 from framework.soft_assert import SoftAssert
 
-# The stale locators cannot be waited into existence, and four of them at the
-# default five seconds is most of the run.
+# Short timeout; stale locators would block too long at default.
 GONE = 2000
 
 
@@ -66,8 +58,7 @@ def test_self_healing_suggests_fixes_for_stale_locators(shop):
                        "checkout-now", "the button that places the order"))
                    .to_be_visible(timeout=GONE))
 
-    # Before assert_all, so the suggestions reach the report even though the
-    # test is about to fail. Adds a step only when something is broken.
+    # Run before assert_all so suggestions reach the report.
     heal.report()
 
     soft.assert_all()

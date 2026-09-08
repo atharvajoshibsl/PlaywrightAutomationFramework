@@ -1,8 +1,6 @@
-"""TC02 - Catalogue search, clear, category filter and sort
+"""TC02 - Catalogue search, clear, category filter and sort.
 
-Searches the catalogue, clears the search, filters by every category and sorts
-the results, checking the listing matches each selection and that a search
-keeps the category and sort already chosen.
+Exercises search, clear, each category filter, sort, and combined filters.
 """
 
 import re
@@ -16,40 +14,27 @@ from framework.soft_assert import SoftAssert, holds
 
 
 def capture(page, name):
-    """Files a screenshot under whichever step is open when it is called.
-
-    Every step here changes what the listing shows, so each one leaves an image
-    behind and the report reads as a walkthrough. JPEG rather than PNG: roughly
-    a quarter of the size, for evidence nobody inspects pixel by pixel.
-    """
+    """Attach a full-page JPEG screenshot to the current Allure step."""
     allure.attach(page.screenshot(full_page=True, type="jpeg", quality=70),
                   name=name, attachment_type=allure.attachment_type.JPG)
 
 
 def prices_shown(page):
-    """The prices on the page as plain integers, in the order they appear.
-
-    Read as values rather than asserted through expect() because the question
-    here is about their order, which no single element can answer.
-    """
+    """Return product prices as integers, in display order."""
     texts = page.get_by_test_id("product-price").all_text_contents()
-    # Strips the rupee sign and the thousands comma: "₹3,299" -> 3299.
+    # Strip rupee sign and commas: "₹3,299" -> 3299.
     return [int(re.sub(r"\D", "", text)) for text in texts]
 
 
 def search_for(page, term):
-    """Submits a search and waits for the new listing.
-
-    An action, so it fails hard rather than softly: if the search never
-    submits, every check after it describes the wrong page.
-    """
+    """Fill search, submit, and wait for the query in the URL."""
     page.get_by_test_id("search-input").fill(term)
     page.get_by_test_id("search-submit").click()
     page.wait_for_url(re.compile(f"q={term}"))
 
 
 def open_category(page, slug):
-    """Clicks a category chip and waits for the filtered listing."""
+    """Click a category chip and wait for the filtered URL."""
     page.get_by_test_id(f"category-{slug}").click()
     page.wait_for_url(re.compile(f"category={slug}"))
 
@@ -82,21 +67,18 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
     with allure.step("Step 2 - search for sandal"):
         search_for(page, "sandal")
 
-        # Singular, because the template drops the "s" at one result. Worth
-        # asserting exactly: the count text is what a user reads first.
+        # Singular "product" when the result count is 1.
         soft.check('result count reads 1 product found for "sandal"',
                    lambda: expect(result_count)
                    .to_have_text('1 product found for "sandal"'))
-        # to_have_text with a list asserts count, text and order at once, so
-        # an extra or missing product fails here too.
+        # to_have_text(list) checks count, text, and order together.
         soft.check("only Trail Sandals is listed",
                    lambda: expect(names).to_have_text(["Trail Sandals"]))
 
         capture(page, "search results for sandal")
 
     with allure.step("Step 3 - clear the search"):
-        # This is the first regression guard in the plan: clearing the box used
-        # to leave the filtered listing in place.
+        # Clearing must restore the full listing, not leave filters behind.
         page.get_by_test_id("search-clear").click()
         page.wait_for_url(lambda url: "q=" not in url)
 
@@ -108,8 +90,7 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
         soft.check("search box is empty",
                    lambda: expect(page.get_by_test_id("search-input"))
                    .to_have_value(""))
-        # The Clear control only renders while a search is active, so with the
-        # search gone it should be gone too.
+        # Clear button only renders while a search is active.
         soft.check("Clear control is no longer offered",
                    lambda: expect(page.get_by_test_id("search-clear"))
                    .to_have_count(0))
@@ -132,12 +113,9 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
                        lambda: expect(result_count)
                        .to_have_text(f"{len(products)} products found"))
 
-            # Each category is its own view, so each gets its own image rather
-            # than one shot standing in for all four.
             capture(page, f"{slug} listing")
 
-        # Every product belongs to exactly one category, so the four filtered
-        # listings have to account for the whole catalogue between them.
+        # Each product is in one category; counts should sum to the total.
         soft.check(f"the four category counts add up to {total}",
                    holds(sum(counts) == total,
                          f"counts were {counts}, adding up to {sum(counts)}"))
@@ -146,8 +124,7 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
         footwear = config.CATEGORY_PRODUCTS["footwear"]
         open_category(page, "footwear")
 
-        # Selecting fires the form's onchange, so this navigates on its own -
-        # nothing else is clicked, which is the point of the step.
+        # select_option triggers navigation via the form onchange.
         sort_select.select_option("price-asc")
         page.wait_for_url(re.compile("sort=price-asc"))
 
@@ -177,8 +154,7 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
         capture(page, "Footwear sorted high to low")
 
     with allure.step("Step 7 - search inside the filtered, sorted listing"):
-        # The second regression guard: searching used to drop the category and
-        # the sort, quietly widening the results.
+        # Search must keep the active category and sort.
         search_for(page, "shoes")
 
         soft.check('result count reads 1 product found for "shoes"',
@@ -197,8 +173,6 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
                    holds(remaining == sorted(remaining, reverse=True),
                          f"prices came back as {remaining}"))
 
-        # The one image worth keeping if only one could be: it shows the chip,
-        # the dropdown and the search box all still holding their selections.
         capture(page, "search inside Footwear, sort still applied")
 
     with allure.step("Step 8 - search for something that matches nothing"):
@@ -212,8 +186,7 @@ def test_catalogue_search_clear_category_filter_and_sort(shop):
                    .to_be_visible())
         soft.check("no product cards are left",
                    lambda: expect(cards).to_have_count(0))
-        # A no-match search should still be the catalogue, not a 404 or a stack
-        # trace, so the title is the cheapest proof the page is intact.
+        # No-match search should stay on the catalogue page, not an error.
         soft.check("this is still the catalogue, not an error page",
                    lambda: expect(page)
                    .to_have_title("Products | AItomationKart"))
