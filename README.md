@@ -84,6 +84,11 @@ arguments. `--headed`, `--browser`, `--slowmo` and `--tracing` come from
 Every run builds its own report, so running the tests and having a current
 report are the same action.
 
+![Allure report: the suite, TC08 expanded to its steps and screenshots](docs/allure-report.png)
+
+Every case opens into its plan steps, every step into its checks, and the
+screenshot each step took is attached inside it.
+
 | Path | What it is |
 |------|-----------|
 | `reports/latest-report.html` | The report to open. One self-contained file with screenshots embedded. Overwritten each run |
@@ -108,6 +113,7 @@ PlaywrightAutomation/
 ├─ conftest.py        Shared fixtures and the end-of-run report build
 ├─ pytest.ini         Target URL, Allure output, markers
 ├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
+├─ docs/              The report screenshot used above
 ├─ framework/
 │  ├─ config.py       What the app should contain — the suite's oracle
 │  ├─ money.py        Prices to integers and back
