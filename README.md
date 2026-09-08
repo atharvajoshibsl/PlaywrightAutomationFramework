@@ -3,21 +3,20 @@
 Python + Playwright + pytest test suite for [AItomationKart](https://atharvajoshi.pythonanywhere.com),
 a demo e-commerce site built specifically to be automated against.
 
-Functional UI cases driven by `data-testid` locators, soft assertions that
-report every failed check in one run, and a cumulative Allure report with
-per-step screenshots. The test plan is an Excel workbook generated from Python,
-so it stays reviewable as a diff.
+Functional UI tests with soft assertions, so one run reports every failed check
+rather than stopping at the first. Each run builds a cumulative Allure report
+with per-step screenshots. The test plan is an Excel workbook generated from
+Python, so it stays reviewable as a diff.
 
-Two of the tools are LLM-backed, both by retrieval rather than recall: test
-cases are drafted from a feature specification, and a locator the page has lost
-is repaired by reading the page's own elements. Neither ever decides a verdict.
+Two helpers use an LLM: one drafts test cases from a feature spec, the other
+suggests a replacement for a locator the page has lost. Neither decides whether
+a test passes.
 
-3 of 18 planned cases are automated; the rest are written up in `TEST_PLAN.xlsx`
-and added one at a time.
+3 of 18 planned cases are automated; the rest are added one at a time.
 
 - **Application under test:** https://atharvajoshi.pythonanywhere.com
 - **Application source:** https://github.com/atharvajoshibsl/AItomationKart
-- **Test plan:** `TEST_PLAN.xlsx` — 18 active cases, 9 deferred to a later phase
+- **Test plan:** `TEST_PLAN.xlsx` — 18 active cases, 9 deferred
 
 ## Automation status
 
@@ -42,23 +41,12 @@ and added one at a time.
 | TC17 | Each visitor is isolated from another's reset | Test API | Regression | Planned |
 | TC18 | Self-healing suggests fixes for stale locators | Framework | Regression | Automated |
 
-The full steps, preconditions and expected results for every case live in
-`TEST_PLAN.xlsx`. The nine `TCF_*` rows below the active table are deferred
-scope, kept outside the autofilter range so they never mix with the working set.
-
-## Prerequisites
-
-| Requirement | Why |
-|-------------|-----|
-| Python 3.10+ | Runs the suite |
-| Playwright browsers | Downloaded separately from the pip package |
-| Java 11+ (JDK) | The Allure CLI is a Java tool |
-| Allure CLI | Renders the JSON that `allure-pytest` writes into HTML |
-
-Node is only needed if you install the Allure CLI through npm, which is the
-easiest route on Windows.
+Full steps and expected results for every case live in `TEST_PLAN.xlsx`. The
+`TCF_*` rows below the active table are deferred scope.
 
 ## Setup
+
+Needs Python 3.10+, and Java 11+ with the Allure CLI for reports.
 
 ```powershell
 git clone https://github.com/atharvajoshibsl/PlaywrightAutomationFramework.git
@@ -66,184 +54,109 @@ cd PlaywrightAutomationFramework
 
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
 pip install -r requirements.txt
 playwright install
-```
 
-Then install the reporting toolchain:
-
-```powershell
 winget install --id Microsoft.OpenJDK.21
 npm install -g allure-commandline
 ```
 
-Both must be on `PATH`. Verify with `java -version` and `allure --version`,
-restarting the terminal first so it picks up the new `PATH`. If `allure` is
-missing the suite still runs and still passes — it just prints where the raw
-results are instead of building HTML.
+Restart the terminal, then check `java -version` and `allure --version`. Without
+Allure the tests still run; you just get raw results instead of HTML.
 
 ## Running the suite
 
 ```powershell
 py -m pytest                                  # everything, headless
-py -m pytest --headed                         # watch it drive the browser
+py -m pytest --headed                         # watch the browser
 py -m pytest -m smoke                         # one suite
 py -m pytest tests/test_tc01_home_page_renders_full_expected_interface.py
 py -m pytest --base-url http://127.0.0.1:8000 # a local copy of the app
-py -m pytest --browser firefox --browser webkit
 ```
 
-`pytest.ini` points `base_url` at the hosted site, so a plain `py -m pytest`
-tests production without any arguments. The `--headed`, `--browser`, `--slowmo`
-and `--tracing` flags come from `pytest-playwright`.
+`pytest.ini` points at the hosted site, so a plain `py -m pytest` needs no
+arguments. `--headed`, `--browser`, `--slowmo` and `--tracing` come from
+`pytest-playwright`.
 
-Because `addopts` carries `--clean-alluredir`, each run starts from an empty
-results directory and the report never mixes two runs. Run a single file and
-the report contains only that file.
+## Reports
 
-## Reporting
+Every run builds its own report, so running the tests and having a current
+report are the same action.
 
-Every run ends by building its own report — running the tests and having an
-up-to-date report are the same action, so no run can go unrecorded.
+| Path | What it is |
+|------|-----------|
+| `reports/latest-report.html` | The report to open. One self-contained file with screenshots embedded. Overwritten each run |
+| `reports/runs/run-NNN_*.zip` | A permanent copy of each run's raw results |
+| `reports/allure-history/` | Kept across runs, so reports show trends |
 
-- **`reports/latest-report.html`** — the report you open. A self-contained
-  single file with screenshots base64-embedded, so it can be emailed or
-  attached as-is. Overwritten every run, so you can leave it open in a tab and
-  refresh. Roughly 4 MB.
-- **`reports/runs/run-NNN_<timestamp>.zip`** — a permanent record of each run's
-  raw results, including screenshots. Between 120 KB and 1 MB per run, versus
-  ~4 MB if finished HTML were kept, because most of a single-file report is a
-  byte-identical copy of Allure's viewer.
-- **`reports/allure-history/`** — carried across runs so each report shows the
-  trend chart and each test's record of earlier executions.
-
-Re-render any archived run on demand:
+Rebuild any archived run:
 
 ```powershell
-py tools/view_run.py        # list what is archived
+py tools/view_run.py        # list archives
 py tools/view_run.py 18     # rebuild run 18 and open it
 ```
 
-Nothing under `reports/` is committed. It is all rebuilt by a run, and the
-directories are created automatically.
-
-### Screenshots
-
-Screenshots are never written as loose files. `page.screenshot()` returns bytes
-and `allure.attach` files them against the open step, so they appear inside the
-step that produced them rather than in a pile at the end of the test. They are
-JPEG at quality 70 — around a quarter the size of PNG, for evidence nobody
-inspects pixel by pixel.
+Nothing under `reports/` is committed. Screenshots are attached to the open
+Allure step rather than saved as files, so they appear inside the step that
+took them.
 
 ## Layout
 
 ```
 PlaywrightAutomation/
-├─ conftest.py        Fixtures every test gets for free, plus the end-of-run
-│                     report build. pytest finds this automatically.
-├─ pytest.ini         Target URL, Allure output, marker declarations
-├─ requirements.txt
+├─ conftest.py        Shared fixtures and the end-of-run report build
+├─ pytest.ini         Target URL, Allure output, markers
 ├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
 ├─ framework/
-│  ├─ config.py       What the app is expected to contain — the suite's oracle
-│  ├─ soft_assert.py  Assertions that record a failure instead of ending the test
-│  └─ reporting.py    History handling, report generation, run archiving
+│  ├─ config.py       What the app should contain — the suite's oracle
+│  ├─ soft_assert.py  Assertions that record a failure instead of stopping
+│  └─ reporting.py    Report generation, history, run archiving
 ├─ tests/
 │  ├─ test_tc01_home_page_renders_full_expected_interface.py
 │  ├─ test_tc02_catalogue_search_clear_category_filter_and_sort.py
 │  └─ test_self_healing_demo.py  Stale locators on purpose, to show healing
 ├─ ai/
-│  ├─ design_tests.py    Drafts test cases from a feature, in the plan's format
-│  ├─ feature.txt        The feature to draft from — replace with your own ticket
-│  └─ self_heal.py       Locator healing: reads the page, suggests, judges
+│  ├─ design_tests.py  Drafts test cases from a feature
+│  ├─ feature.txt      The feature to draft from — replace with your ticket
+│  └─ self_heal.py     Suggests a locator to replace one the page has lost
 └─ tools/
-   ├─ build_test_plan.py  Regenerates TEST_PLAN.xlsx from Python source
+   ├─ build_test_plan.py  Regenerates TEST_PLAN.xlsx
    └─ view_run.py         Rebuilds an archived run into HTML
 ```
 
 ## AI capability
 
-Two places an LLM earns its keep, both driven by **retrieval rather than
-recall**: the model is never asked what it remembers about e-commerce sites, it
-is handed retrieved context and asked to reason over it.
+Both tools work by retrieval, not recall: the model is given real context and
+asked to reason over it, and its answer is then checked in Python.
 
-| Tool | Retrieved context | Output |
-|------|-------------------|--------|
-| Test design — `ai/design_tests.py` | The feature spec in `ai/feature.txt`, plus TC01 and TC02 as worked examples of house style | Draft cases in the plan's own 11 columns |
-| Self-healing — `ai/self_heal.py` | The live page's own elements, read with one `page.evaluate` | A verified locator to replace one the page has lost |
+| Tool | Context it is given | Output |
+|------|--------------------|--------|
+| `ai/design_tests.py` | The feature spec, plus TC01 and TC02 as style examples | Draft cases in the plan's columns |
+| `ai/self_heal.py` | The live page's elements, read with one `page.evaluate` | A locator verified to match one element |
 
-Retrieval is what makes the answers checkable. A drafted case can be held
-against the acceptance criteria it came from, and a suggested locator must
-appear in the element list that came off the page seconds earlier. Both outputs
-are validated in Python before you see them — a schema with enums for the
-drafts, a real `count() == 1` for the locators.
+Paste your Gemini key into `ai/api_key.txt` once. The model is
+`gemini-3.5-flash-lite`, a constant at the top of each file.
 
-`framework/` never imports `ai/`, so the deterministic core stays free of the
-model. One test imports it — the self-healing demo — and even there the model
-only annotates a failure it had no part in deciding.
-
-Embeddings-based retrieval over the existing plan, so drafts cannot duplicate
-coverage, is on the roadmap rather than in the repository.
-
-### Seeing it in the Allure report
-
-Run the demo, then open `reports/latest-report.html`:
-
-```powershell
-pytest tests/test_self_healing_demo.py -s
-```
-
-Find **TC18 — Self-healing suggests fixes for stale locators**. Because it is
-`xfail`, Allure files it under skipped rather than failed. Open it and the last
-step reads `Healing suggestions for 4 of 6 locators`; its
-`self-healing suggestions` attachment holds the actual locator, the suggested
-one, and the file and line to edit. The steps above it are red per failed check,
-and `check summary` carries the tally.
-
-### Test case design
-
-`ai/design_tests.py` drafts test cases from a feature description, in the same
-columns as the Test Cases sheet. It is how the plan is meant to grow — from a
-ticket or an HLD, rather than by reading the finished site and writing tests to
-match it.
-
-Paste your Gemini key into `ai/api_key.txt` once, put a feature into
-`ai/feature.txt`, then:
+### Drafting test cases
 
 ```powershell
 py ai/design_tests.py
 ```
 
-It asks how many cases you want and which feature area, writes them to
-`ai/ai_test_cases.csv`, and lists any acceptance criterion no case covers. Read
-the CSV, type what to improve, and the same rows are rewritten. Copy the cases
-worth keeping into `TEST_PLAN.xlsx` yourself — the AI never writes to the plan.
-
-Two things carry the output quality: the response schema, whose enums make an
-invalid Suite, Scope or Priority impossible, and TC01 and TC02 embedded in the
-prompt as worked examples. Without those examples the model splits one rendering
-case into one case per page section.
+Put a feature into `ai/feature.txt`. It asks how many cases you want, writes
+them to `ai/ai_test_cases.csv`, and lists any acceptance criterion no case
+covers. Read the CSV, say what to improve, and the rows are rewritten. Copy the
+keepers into `TEST_PLAN.xlsx` yourself — the AI never writes to the plan.
 
 ### Self-healing locators
-
-`ai/self_heal.py` answers one question: a test looked for a `data-testid` that
-is no longer on the page — which element did it mean? It never repairs anything.
-A failing test still fails; the report just tells you what to change.
-
-`tests/test_self_healing_demo.py` shows it working. Six locators, three of them
-renamed long ago and one for an element the page does not have:
 
 ```powershell
 pytest tests/test_self_healing_demo.py -s
 ```
 
-The test asks for its elements through `heal.find(testid, intent)` instead of
-`page.get_by_test_id(testid)`, which is the same locator plus a note of what it
-was for. At the end, `heal.report()` reads the page once, compares the testids
-the test asked for against what is actually there, and asks the model only about
-the ones that are missing — four calls, not six. Suggestions go to the terminal
-and to the Allure report:
+A test asks for elements through `heal.find(testid, purpose)`. At the end,
+`heal.report()` reads the page once and asks the model only about testids that
+are missing, then prints and attaches this:
 
 ```
 [heal] 4 of 6 locators are not on the page:
@@ -257,124 +170,75 @@ and to the Allure report:
    at:        test_self_healing_demo.py:65
 ```
 
-When every locator resolves it says nothing and adds no step, so a healthy test
-is untouched.
+Three rules keep it honest:
 
-The suggestion is a whole locator, not just a testid, and it is chosen by asking
-the page rather than by reasoning. `best_locator` tries `get_by_role` with an
-accessible name, then the testid, then placeholder, role alone and exact text,
-and keeps the first whose `count()` is exactly 1. So the line you paste is known
-to resolve to one element — and if nothing does, it says to add `.first`.
+- **It suggests, never repairs.** A failing test still fails.
+- **The suggestion is verified.** `best_locator` tries `get_by_role`, testid,
+  placeholder and text against the page, keeping the first with `count() == 1`.
+- **It refuses rather than guesses.** No matching element means no suggestion,
+  because a healer that invents one turns a real bug green.
 
-The demo is `xfail`: its failures are the demonstration, and a permanently red
-suite would be worse than no demo. Use `--runxfail` to see it fail for real.
-
-Reading the page is the unglamorous half. Sending raw HTML to a model is mostly
-paying for class attributes and layout wrappers, so one `page.evaluate` reduces
-it to the elements a test could target — tag, testid, up to three sample texts,
-and how many elements share that testid. Unrendered elements never leave the
-browser, and one row per testid keeps 16 product cards from becoming 16 copies
-of the same ids. The count is not decoration: a suggestion matching 16 elements
-would fail Playwright's strict mode, so the report says to narrow it.
-
-Then Python judges the answer. The confidence must clear a floor, and the
-suggested testid must appear in that inventory — which, since the list came off
-the live page moments earlier, proves the element exists and is rendered. The
-model narrows the candidates; code decides whether to believe it.
-
-Two properties matter more than the accuracy. It **suggests, never repairs**, so
-a run stays reproducible and no model sits in the pass/fail decision. And it
-**refuses rather than guesses**: asked for a button that places an order on a
-page that has none, it returns nothing at zero confidence instead of offering
-the nearest lookalike. That refusal is the point — a healer that invents an
-element turns a real bug green, which is worse than a red test.
-
-It also picks `add-to-cart` over `add-to-cart-form`, whose name is one word off
-the broken locator, because the prompt asks what an element does rather than
-what it is called. String similarity picks the form.
-
-The same file runs on its own for one locator, without a test:
+Silent when nothing is broken. For one locator without running a test:
 
 ```powershell
 py ai/self_heal.py "add-to-cart-button" "the button that adds to the cart"
 ```
 
-Not yet built: caching accepted heals to disk, so a broken locator costs one
-call ever and repeat runs need no model at all.
+### Seeing it in the Allure report
 
-### Model choice
-
-The model is `gemini-3.5-flash-lite`, one constant near the top of each file.
-Flash-Lite is the free tier's workhorse at roughly 15 calls a minute; plain
-Flash is stronger but a new key only gets around 20 calls a day on it. Pro
-models left the free tier in April 2026, and `gemini-2.5-flash` now 404s for
-newly created keys, so older tutorials will mislead you.
+Open `reports/latest-report.html` and find **TC18**. It is `xfail`, so Allure
+files it under skipped. Its last step, `Healing suggestions for 4 of 6
+locators`, holds the `self-healing suggestions` attachment.
 
 ## Design decisions
 
-**Soft assertions for verifications, hard failures for actions.** A rendering
-case verifies dozens of independent facts about one page. With plain asserts the
-first bad one hides the rest, so you fix, re-run, and discover the next — once
-per defect. `SoftAssert.check` collects outcomes and fails once at the end, so
-one run tells you everything. Actions stay hard: if "Add to cart" does not
-click, every later assertion about the cart is noise pointing at the wrong
-thing.
+**Soft assertions for checks, hard failures for actions.** `SoftAssert.check`
+collects outcomes and fails once at the end, so one run tells you every broken
+check. Actions stay hard: if "Add to cart" never clicks, later assertions about
+the cart are noise.
 
-**Expected data lives in `framework/config.py`, not in assertions.** The answer
-to "what is correct" sits in one readable place. When the shop adds a category,
-one line changes there and every test that cares fails until it does.
+**Expected data lives in `framework/config.py`.** When the shop adds a
+category, one line changes there and every test that cares fails until it does.
 
-**Locators are `data-testid` only.** The application was built with test ids
-throughout, so no test depends on CSS structure or visible copy. The single
-exception is the product card image, which has no id yet.
+**Locators prefer `data-testid`.** The app carries test ids throughout, so
+tests do not depend on CSS structure or wording. Where an id is missing, the
+product card image for example, a class selector is used instead.
 
 **Every test starts from a known state.** The `shop` fixture calls the app's
-reset endpoint, so a case opens with 16 products, 53 variants, 2 accounts and no
-orders. Each visitor gets a database keyed to their session cookie, so runs
-cannot interfere with each other or with anyone browsing the live site. The
-reset is explicit rather than relying on a fresh browser profile: "happens to
-start clean" is how suites rot.
+reset endpoint. Each visitor gets their own database keyed to a session cookie,
+so runs cannot interfere with each other or with the live site.
 
-**One case per page or flow, not one per click.** Several checks on the same
-page are steps inside one case. Interface rendering is covered exactly once, by
-TC01; every other case asserts behaviour rather than presence.
+**One case per page or flow, not one per click.** Checks on the same page are
+steps inside one case. Rendering is covered once, by TC01.
 
 ## Adding a test case
 
 1. Read the case in `TEST_PLAN.xlsx`.
-2. Copy `tests/test_tc02_*.py` as the pattern: module docstring naming the case,
-   `@allure.feature`/`story`/`severity`/`title`, pytest suite markers, then one
-   `allure.step` per plan step in the plan's own wording.
-3. Take the `shop` fixture for a reset home page. Use plain Playwright calls for
-   actions and `soft.check` for the observations that follow them.
-4. Put any new expected values in `framework/config.py`.
+2. Copy `tests/test_tc02_*.py` as the pattern: docstring, allure decorators,
+   suite markers, one step per plan step.
+3. Take the `shop` fixture. Plain Playwright calls for actions, `soft.check`
+   for the observations after them.
+4. Put new expected values in `framework/config.py`.
 5. Call `soft.assert_all()` last.
-6. Name the file `test_tcNN_<case name in snake case>.py` so the file, the
-   report title and the plan row all read the same.
+6. Name the file `test_tcNN_<case name in snake case>.py`.
 
 ## Editing the test plan
 
-`TEST_PLAN.xlsx` is generated, so edit `tools/build_test_plan.py` and re-run it
-rather than editing the workbook. That keeps the plan reviewable as a diff in
-git instead of only inside a binary file.
+Edit `tools/build_test_plan.py` and re-run it, so the plan stays reviewable in
+git rather than only inside a binary. Close Excel first — it holds a write lock.
 
 ```powershell
 py tools/build_test_plan.py
 ```
 
-Close the workbook first — Excel holds a write lock while it is open.
-
 ## Roadmap
 
 - Automate TC03 onward, one case at a time
-- Refactor the shared page interactions into page objects once enough cases
-  exist to show what actually repeats
-- GitHub Actions workflow with the report published to Pages
-- Parallel execution once the cases are independent enough to allow it
-- An API-level layer alongside the UI cases
-- More of the AI side: retrieval over the existing plan so drafts do not
-  duplicate coverage, heals cached to disk so a broken locator costs one call
-  ever, then AI-assisted triage of failures in the report
+- Page objects once enough cases show what repeats
+- GitHub Actions with the report published to Pages
+- Parallel execution, and an API-level layer alongside the UI cases
+- Cache accepted heals to disk, and retrieval over the plan so drafts do not
+  duplicate coverage
 
 ## Author
 
