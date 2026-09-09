@@ -18,6 +18,7 @@ at a time.
 - **Application under test:** https://atharvajoshi.pythonanywhere.com
 - **Application source:** https://github.com/atharvajoshibsl/AItomationKart
 - **Test plan:** `TEST_PLAN.xlsx` — 18 active cases, 9 deferred
+- **Latest report:** https://atharvajoshibsl.github.io/PlaywrightAutomationFramework/ — published by CI on every green run
 
 ## Automation status
 
@@ -106,14 +107,16 @@ Nothing under `reports/` is committed. Screenshots are attached to the open
 Allure step rather than saved as files, so they appear inside the step that
 took them.
 
-## Continuous integration
+## Continuous integration and delivery
 
-A Jenkins job, `Playwright-Suite`, runs the same suite on every trigger. It is CI
-only: the job checks out, installs, tests and reports. Nothing is deployed.
+A Jenkins job, `Playwright-Suite`, runs the same suite on every trigger and
+publishes the report of any green run to
+[GitHub Pages](https://atharvajoshibsl.github.io/PlaywrightAutomationFramework/).
+Small, but both halves: CI checks out, installs and tests; CD ships the report.
 
 ![The Jenkins job: build history, the Allure trend and the test result trend](docs/jenkins-job.png)
 
-The job pulls `main` from GitHub, then runs two batch steps:
+The job pulls `main` from GitHub, then runs three batch steps:
 
 ```bat
 python -m venv .venv                       :: first step, the environment
@@ -121,26 +124,35 @@ python -m venv .venv                       :: first step, the environment
 .venv\Scripts\python -m playwright install chromium
 
 .venv\Scripts\python -m pytest %SUITE% %EXTRA% --junitxml=reports/junit.xml
+
+git clone --branch gh-pages ...        :: third step, the deploy
+copy reports\latest-report.html gh-pages\index.html
+git commit -am "..." && git push
 ```
 
-Two choice parameters decide what that second line runs:
+Three parameters decide what runs, how and where:
 
 | Parameter | Choices | Effect |
 |-----------|---------|--------|
 | `SUITE` | `tests`, `-m smoke`, `-m sanity`, `-m regression`, or a single test file | What to run |
 | `MODE` | `headless`, `headed` | Adds `--headed` |
+| `NODE` | `built-in`, `desktop` | Which agent runs the build |
 
 Afterwards the JUnit plugin publishes `reports/junit.xml` for pass/fail history,
 and the Allure plugin builds its report from `reports/allure-results`. JUnit gives
 the trend graph, Allure gives the steps and screenshots.
 
+**The deploy step is gated by the tests.** A Freestyle job stops at the first
+failing step, so the push to `gh-pages` only happens when the run is green — a
+red run leaves the published report at the last good one. Its GitHub token comes
+from a Jenkins credential bound to `GH_TOKEN`, never from the repo.
+
 **Headed runs need a desktop agent.** The Jenkins service has no desktop, so a
-browser it launches is invisible even with `--headed`. The job is therefore tied
-to an agent labelled `desktop`, which is `agent.jar` running in the logged-in
-Windows session — started by `start-jenkins-agent.bat` and left open. Close that
-window mid-build and the build fails with `Backing channel 'desktop' is
-disconnected`. The agent's secret is read from `agent-secret.txt`, which is
-gitignored.
+browser it launches is invisible even with `--headed`. That is what `NODE=desktop`
+is for: an agent running `agent.jar` in the logged-in Windows session, started by
+`start-jenkins-agent.bat` and left open. Close that window mid-build and the
+build fails with `Backing channel 'desktop' is disconnected`. The agent's secret
+is read from `agent-secret.txt`, which is gitignored.
 
 ## Layout
 
@@ -302,7 +314,7 @@ py tools/build_test_plan.py
 ## Roadmap
 
 - Automate TC11 onward, one case at a time
-- GitHub Actions with the report published to Pages
+- GitHub Actions as a second runner, alongside Jenkins
 - Parallel execution, and an API-level layer alongside the UI cases
 - Cache accepted heals to disk, and retrieval over the plan so drafts do not
   duplicate coverage
