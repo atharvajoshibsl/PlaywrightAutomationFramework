@@ -106,6 +106,42 @@ Nothing under `reports/` is committed. Screenshots are attached to the open
 Allure step rather than saved as files, so they appear inside the step that
 took them.
 
+## Continuous integration
+
+A Jenkins job, `Playwright-Suite`, runs the same suite on every trigger. It is CI
+only: the job checks out, installs, tests and reports. Nothing is deployed.
+
+![The Jenkins job: build history, the Allure trend and the test result trend](docs/jenkins-job.png)
+
+The job pulls `main` from GitHub, then runs two batch steps:
+
+```bat
+python -m venv .venv                       :: first step, the environment
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m playwright install chromium
+
+.venv\Scripts\python -m pytest %SUITE% %EXTRA% --junitxml=reports/junit.xml
+```
+
+Two choice parameters decide what that second line runs:
+
+| Parameter | Choices | Effect |
+|-----------|---------|--------|
+| `SUITE` | `tests`, `-m smoke`, `-m sanity`, `-m regression`, or a single test file | What to run |
+| `MODE` | `headless`, `headed` | Adds `--headed` |
+
+Afterwards the JUnit plugin publishes `reports/junit.xml` for pass/fail history,
+and the Allure plugin builds its report from `reports/allure-results`. JUnit gives
+the trend graph, Allure gives the steps and screenshots.
+
+**Headed runs need a desktop agent.** The Jenkins service has no desktop, so a
+browser it launches is invisible even with `--headed`. The job is therefore tied
+to an agent labelled `desktop`, which is `agent.jar` running in the logged-in
+Windows session — started by `start-jenkins-agent.bat` and left open. Close that
+window mid-build and the build fails with `Backing channel 'desktop' is
+disconnected`. The agent's secret is read from `agent-secret.txt`, which is
+gitignored.
+
 ## Layout
 
 ```
@@ -113,7 +149,8 @@ PlaywrightAutomation/
 ├─ conftest.py        Shared fixtures and the end-of-run report build
 ├─ pytest.ini         Target URL, Allure output, markers
 ├─ TEST_PLAN.xlsx     The reviewable plan: 18 active cases, 9 deferred
-├─ docs/              The report screenshot used above
+├─ docs/              Screenshots used in this README
+├─ start-jenkins-agent.bat  Brings the Jenkins desktop agent online
 ├─ framework/
 │  ├─ config.py       What the app should contain — the suite's oracle
 │  ├─ money.py        Prices to integers and back
